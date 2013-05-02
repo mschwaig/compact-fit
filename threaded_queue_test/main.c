@@ -5,10 +5,10 @@
 #include <string.h>
 #include "lb_queue.h"
 
-#define PRODUCER_THREADS 2
-#define CONSUMER_THREADS 10 // only works with one for now
-#define PRODUCE_PER_P_THREAD 10
-#define CONSUME_PER_C_THREAD 2
+#define PRODUCER_THREADS 100
+#define CONSUMER_THREADS 100
+#define PRODUCE_PER_P_THREAD 100
+#define CONSUME_PER_C_THREAD 100
 
 typedef struct thread_args_t{
 	struct lb_queue_t* queue;
@@ -53,8 +53,7 @@ int main(int argc, char *argv[]){
 	int rc;
 
 	lb_queue_t init = create_queue();
-	lb_queue_t* queue = &init; // = malloc(sizeof(lb_queue_t));
-	// memcpy(queue, &init, sizeof(init));
+	lb_queue_t* queue = &init;
 
 	for(p_id = 0; p_id < PRODUCER_THREADS; p_id++){ // create producers
 		producer_args[p_id].thread_id = p_id;
@@ -85,7 +84,6 @@ int main(int argc, char *argv[]){
 	}
 
 	pthread_mutex_destroy(&queue->lock);
-	//free(queue);
 	printf("happy ending");
 
 	return EXIT_SUCCESS;

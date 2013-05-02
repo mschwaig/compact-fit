@@ -4,9 +4,9 @@
 void display(lb_queue_t* queue);
 
 void enqueue(lb_queue_t* queue, int item){
-	while(!pthread_mutex_trylock(&(queue->lock))){
-		sched_yield();
-	}
+
+	pthread_mutex_lock(&queue->lock);
+
 	node_t* n = (node_t*) malloc(sizeof(node_t));
 	n->item = item;
 	n->link = NULL;
@@ -19,21 +19,17 @@ void enqueue(lb_queue_t* queue, int item){
 	queue->tail = n;
 	queue->size++;
 
-	// display(queue);
 	pthread_mutex_unlock(&queue->lock);
 }
 
 int dequeue(lb_queue_t* queue){
-	while(!pthread_mutex_trylock(&(queue->lock))){
-		sched_yield();
-	}
+
+	pthread_mutex_lock(&queue->lock);
 
 	while (queue->size == 0) {
-		pthread_mutex_unlock(&(queue->lock));
+		pthread_mutex_unlock(&queue->lock);
 		sched_yield();
-		while (!pthread_mutex_trylock(&(queue->lock))){
-			sched_yield();
-		}
+		pthread_mutex_lock(&queue->lock);
 	}
 
 	node_t* old_head = queue->head;
@@ -49,17 +45,17 @@ int dequeue(lb_queue_t* queue){
 void display(lb_queue_t* queue){
 	node_t* tmp = queue->head;
 
-	printf("( ");
+
 	if (queue->head != NULL){
+		printf("( ");
 		while (tmp != NULL){ // why nonsense w/o queue->head != NULL?
 			printf("%d ", tmp->item);
 			tmp = tmp->link;
 		}
+		printf("), h: %d, t: %d, s: %d\n", queue->head->item, queue->tail->item, queue->size);
+	} else {
+		printf("(), h: NULL, t: NULL, s: 0\n");
 	}
-	printf(")");
-
-	if(queue->head != NULL) printf(", h: %d, t: %d, s: %d\n", queue->head->item, queue->tail->item, queue->size);
-	else printf(", h: NULL, t: NULL, s: 0\n");
 }
 
 lb_queue_t create_queue(){
