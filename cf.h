@@ -29,7 +29,7 @@
 */
  
 #ifndef CF_H_
-#define Cf_H_
+#define CF_H_
 
 #include <stdint.h>
 #include <stddef.h>

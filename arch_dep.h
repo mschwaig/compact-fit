@@ -132,6 +132,7 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 					(unsigned long)(n),sizeof(*(ptr))))
 
 #elif defined(__x86_64__)
+
 static __inline__ unsigned long long rdtsc(void)
 {
   unsigned hi, lo;
@@ -139,6 +140,7 @@ static __inline__ unsigned long long rdtsc(void)
   return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
 }
 
+#define ARCH_HAS_CAS64 1
 #elif __arm__
 
 /* 

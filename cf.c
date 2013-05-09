@@ -1788,9 +1788,9 @@ void cf_init(unsigned long abstract_address_space_size,
 		exit(3);
 	}
 	if((unsigned long)pages & (PAGESIZE - 1)){
-		void *tmp =  (void *)(((unsigned long)pages) & (0xffffffff^(PAGESIZE - 1)));
+		void *tmp =  (void *)(((unsigned long)pages) & (~(PAGESIZE - 1)));
 		alignment = PAGESIZE + (long)tmp - (long)pages; 
-		pages = (void *)(((unsigned long)pages) & (0xffffffff^(PAGESIZE - 1)));
+		pages = (void *)(((unsigned long)pages) & (~(PAGESIZE - 1)));
 		pages = (struct page *)((char *)pages + PAGESIZE);
 	}
 	nr_pages = (heap_size-alignment)/PAGESIZE/nr_local_pages;
