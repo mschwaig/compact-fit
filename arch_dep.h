@@ -140,6 +140,41 @@ static __inline__ unsigned long long rdtsc(void)
   return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
 }
 
+static inline int atomic_add_return(int i, int *v)
+{
+	int result;
+        // TODO: ADD PLATFORM DEPENDENT  CODE FOR x86_64
+	return result;
+}
+
+
+static inline int _ffs(int x) {
+        int r;
+	// TODO: ADD PLATFORM DEPENDENT  CODE FOR x86_64
+        return r;
+}
+
+static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
+				      unsigned long new, int size)
+{
+	// TODO: ADD PLATFORM DEPENDENT  CODE FOR x86_64
+	return old;
+}
+#define cmpxchg(ptr,o,n)\
+	((__typeof__(*(ptr)))__cmpxchg((ptr),(unsigned long)(o),\
+					(unsigned long)(n),sizeof(*(ptr))))
+
+static inline long long __cmpxchg64(uint64_t *ptr, uint64_t old, uint64_t new)
+{
+	unsigned long long prev;
+	// TODO: ADD PLATFORM DEPENDENT  CODE FOR x86_64
+	return prev;
+}
+
+#define cmpxchg64(ptr,o,n)\
+	((__typeof__(*(ptr)))__cmpxchg64((ptr),(unsigned long long)(o),\
+					(unsigned long long)(n)))
+
 #define ARCH_HAS_CAS64 1
 #elif __arm__
 
