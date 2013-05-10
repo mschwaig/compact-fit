@@ -54,9 +54,12 @@ Usage : ./cf-test (Just execute the mutator)
 Compilation instructions
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
+0. CURRENTLY TESTED AND COMPILING ON x86 WITH gcc-4.4
+   DOES NOT COMPILE ON 64-bit SYSTEMS OR gcc-4.7 AT ALL RIGHT NOW
+   Makefile has yet to be modified to produce a x86 binary on x86_64 systems
+
 1. Get a working compiler
 An actual version of GCC is the compiler of your choice.
-P.S.: Currently gcc 4.4 seems to do the job gcc 4.7 does not.
 
 2. Conditional compilation
 Set the NONMOVING define directive to 1 if you want to use the nonmoving version
