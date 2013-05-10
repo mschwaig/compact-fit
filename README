@@ -56,6 +56,7 @@ Compilation instructions
 
 1. Get a working compiler
 An actual version of GCC is the compiler of your choice.
+P.S.: Currently gcc 4.4 seems to do the job gcc 4.7 does not.
 
 2. Conditional compilation
 Set the NONMOVING define directive to 1 if you want to use the nonmoving version
