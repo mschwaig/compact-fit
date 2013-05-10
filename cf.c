@@ -71,9 +71,13 @@ TODO: integrate nice with benchmark
 #define PAGE_MASK ((1<<PAGE_SHIFT) - 1)
 
 /**
- * 160B data of page header struct + 24B lock
+ * 160B data of page header struct + 24B lock + optionally 8B thead mark
  */
+#ifndef (REMOTE_FREE_T_LOCK)
+#define PAGEHEADER 192
+#else
 #define PAGEHEADER 184
+#endif
 
 /**
  * memory of a page used for objects (heap memory)
@@ -142,6 +146,9 @@ struct page {
 	struct size_class *sc;			/**< reference to size-class*/
 	uint32_t used_page_block_bitmap[34]; 	/**< 2-dimensional bitmap to find used/free page blocks*/
 	pthread_mutex_t lock;			/**< page lock*/
+#ifdef REMOTE_FREE_T_LOCK
+	uint8_t thread_mark;
+#endif
 };
 
 
@@ -172,7 +179,11 @@ struct size_class {
  * private thread data
  */
 struct thread_data {
-	int id;					/**< thread id*/
+	int id;					/**< thread id*/ /*TODO:
+			limit this to 8 or 16 bit and make it FAST to identify owner thread
+			since we want to save the thread id of a thread that uses a page
+			on the page directly, so that free can be called by every thread
+						*/
 	int pages_count;			/**< number of local pages*/
 	struct mem_page *pages;			/**< local pages*/
 	int pbuckets_count;			/**< number of local page buckets*/
@@ -186,6 +197,9 @@ struct thread_data {
 	int free_abuckets_count;		/**< number of free abstract address buckets*/
 	struct mem_aa_bucket *free_abuckets;	/**< free abstract address buckets*/
 	struct size_class *size_classes;	/**< private size-classes*/
+#ifdef REMOTE_FREE_T_LOCK
+	pthread_mutex_t thread_lock;		/**< thread lock allows one thread to modify another's data */
+#endif
 };
 static struct thread_data *get_thread_data();
 
@@ -711,7 +725,9 @@ static void init_free_pages_list(){
 		p = pages + i;
 		p->list_flags = FREE_LIST_FLAG;
 		init_page_lock(p);
-
+#ifdef REMOTE_FREE_T_LOCK
+		p->thread_mark = 0; // TODO: remove later
+#endif
 		if (j < nr_local_pages) {
 			((struct mem_page *)p)->local_pages = mp;
 			mp = (struct mem_page *)p;
@@ -778,6 +794,11 @@ static inline struct page *get_free_page(){
 			stats->max_used_pages = stats->used_pages;
 #endif
 	}
+
+#ifdef REMOTE_FREE_T_LOCK
+	p->thread_mark = data->id;
+#endif
+
 	return p;
 }
 
@@ -1317,6 +1338,11 @@ static void init_thread(struct thread_data *data){
 	data->pages = NULL;
 	data->aas_count = 0;
 	data->aas = 0;
+
+
+#ifdef REMOTE_FREE_T_LOCK
+	data->thread_lock = PTHREAD_MUTEX_INITIALIZER;
+#endif
 
 	if (private_classes) {
 		data->size_classes = (struct size_class *)(data + 1);
