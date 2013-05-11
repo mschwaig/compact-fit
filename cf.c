@@ -524,6 +524,19 @@ static inline void unlock_sizeClass(struct size_class *sc) { }
 #error unknown locking scheme
 #endif
 
+#ifdef REMOTE_FREE_T_LOCK
+static inline void lock_thread(struct thread_data *t){
+	pthread_mutex_lock(&t->thread_lock);
+}
+
+static inline void unlock_thread(struct thread_data *t){
+	pthread_mutex_unlock(&t->thread_lock);
+}
+#else
+static inline void lock_thread(struct thread_data *t) { }
+static inline void unlock_thread(struct thread_dat *t ){ }
+#endif
+
 /////////////////////////////////////////////////////////////////////
 // Abstract Address Space
 /////////////////////////////////////////////////////////////////////
@@ -1855,6 +1868,7 @@ void **cf_malloc(size_t size){
 	struct page *p;
 	int index;
 	void **address = (void **)0x123;
+	thread_data *t_data;
 
 #ifdef USE_STATS
 	uint64_t start_time;
@@ -1873,6 +1887,10 @@ void **cf_malloc(size_t size){
 	page_block_size = get_page_block_size_of_size_class(sc);
 
 	lock();
+#ifdef REMOTE_FREE_T_LOCK
+	t_data = get_thread_data();
+#endif
+	lock_thread(t_data);
 	lock_sizeClass(sc);
 
 	/*first page in size-class or size class is full => beginn new page*/
@@ -1927,6 +1945,7 @@ void **cf_malloc(size_t size){
 	}
 
 	unlock_sizeClass(sc);
+	unlock_thread(t_data);
 	unlock();
 
 #ifdef USE_STATS
@@ -2005,7 +2024,7 @@ void cf_free(void **address){
 
 }
 
-void cf_free(void **address, struct thread_data *thread_data) {
+void cf_free(void **address, struct thread_data *t_data) {
 	void *page_block;
 	struct page *target_page;
 	struct size_class *sc;
@@ -2018,8 +2037,10 @@ void cf_free(void **address, struct thread_data *thread_data) {
 	int target_index;
 	long *target_aa;
 
+	lock_thread(t_data);
+
 	/*no compaction*/
-	if (!compaction_on(thread_data->size_classes)){
+	if (!compaction_on(t_data->size_classes)){
 		/*no abstract address*/
 		page_block = address;
  
@@ -2132,6 +2153,7 @@ retry:
 		clear_abstract_address(address);
 
 	unlock_sizeClass(sc);
+	unlock_thread(t_data);
 }
 
 void *cf_dereference(void **address, int index)
