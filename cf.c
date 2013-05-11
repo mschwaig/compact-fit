@@ -1948,6 +1948,7 @@ void **cf_malloc(size_t size){
 #ifdef REMOTE_FREE_T_LOCK
 void cf_free(void **address){
 	pthread_key_t thead_key;
+	void *page_block;
 
 #ifdef USE_STATS
 	uint64_t start_time;
@@ -1955,7 +1956,8 @@ void cf_free(void **address){
 #endif
 
 	lock();
-	cf_free(address, get_thread_data()); // TODO: add code to identify owner of page
+	page_block = cf_dereference(address,0);
+	cf_free(address,((struct page *)get_page_direct_of_page_block(page_block))->thread_mark); // get owner thread from page header (any thread can free like this)
 
 
 #ifdef USE_STATS
@@ -1975,6 +1977,7 @@ void cf_free(void **address){
 
 void cf_local_free(void **address){
 #else
+#define cf_local_free(X) cf_free(X)
 void cf_free(void **address){
 #endif
 

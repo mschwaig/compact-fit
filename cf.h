@@ -78,10 +78,16 @@ void **cf_malloc(size_t size);
 void *cf_dereference(void **address, int index);
 
 /**
- * frees a object
+ * frees an object
  * @param address proxy address
  */
 void cf_free(void **address);
+
+/**
+ * frees an object allocated by calling thread
+ * @param address proxy address
+ */
+void cf_local_free(void **address);
 
 /**
  * print memory information (debugging)
