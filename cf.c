@@ -75,7 +75,7 @@ TODO: integrate nice with benchmark
 /**
  * 160B data of page header struct + 24B lock + optionally identifier of owner thread
  */
-#ifndef REMOTE_FREE_T_LOCK
+#ifdef REMOTE_FREE_T_LOCK
 #define PAGEHEADER 184 + sizeof(pthread_key_t)
 #else
 #define PAGEHEADER 184
@@ -1433,9 +1433,6 @@ static struct thread_data *get_thread_data()
 	if(!data) {
 		data = (struct thread_data *)assign_thread_specific();
 		init_thread(data);
-#ifdef lREMOTE_FREE_T_LOCK
-		lock_thread(data); // not that we have an identity, we can finally lock our thread	
-#endif
 	}
 	return data;
 }
