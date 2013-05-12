@@ -73,7 +73,7 @@ TODO: integrate nice with benchmark
 /**
  * 160B data of page header struct + 24B lock + optionally identifier of owner thread
  */
-#ifndef (REMOTE_FREE_T_LOCK)
+#ifndef REMOTE_FREE_T_LOCK
 #define PAGEHEADER 184 + sizeof(pthread_key_t)
 #else
 #define PAGEHEADER 184
@@ -534,7 +534,7 @@ static inline void unlock_thread(struct thread_data *t){
 }
 #else
 static inline void lock_thread(struct thread_data *t) { }
-static inline void unlock_thread(struct thread_dat *t ){ }
+static inline void unlock_thread(struct thread_data *t ){ }
 #endif
 
 /////////////////////////////////////////////////////////////////////
@@ -1868,7 +1868,9 @@ void **cf_malloc(size_t size){
 	struct page *p;
 	int index;
 	void **address = (void **)0x123;
-	thread_data *t_data;
+#ifdef REMOTE_FREE_T_LOCK
+	struct thread_data *t_data;
+#endif
 
 #ifdef USE_STATS
 	uint64_t start_time;
@@ -1889,8 +1891,8 @@ void **cf_malloc(size_t size){
 	lock();
 #ifdef REMOTE_FREE_T_LOCK
 	t_data = get_thread_data();
-#endif
 	lock_thread(t_data);
+#endif
 	lock_sizeClass(sc);
 
 	/*first page in size-class or size class is full => beginn new page*/
@@ -1945,7 +1947,9 @@ void **cf_malloc(size_t size){
 	}
 
 	unlock_sizeClass(sc);
+#ifdef REMOTE_FREE_T_LOCK
 	unlock_thread(t_data);
+#endif
 	unlock();
 
 #ifdef USE_STATS
@@ -1964,67 +1968,11 @@ void **cf_malloc(size_t size){
 	return address;
 }
 
-#ifdef REMOTE_FREE_T_LOCK
-void cf_free(void **address){
-	pthread_key_t thead_key;
-	void *page_block;
-
 #ifdef USE_STATS
-	uint64_t start_time;
-	start_time = get_utime();
-#endif
-
-	lock();
-	page_block = cf_dereference(address,0);
-	cf_free(address,((struct page *)get_page_direct_of_page_block(page_block))->thread_mark); // get owner thread from page header (any thread can free like this)
-
-
-#ifdef USE_STATS
-	struct bench_stats *stats = get_bench_stats();
-	stats->num_free++;
-	uint64_t end = get_utime();
-	stats->free_time[get_size_class_index(page_block_size)] += end - start_time;
-	if (stats->free_max_time[get_size_class_index(page_block_size)] < end - start_time)
-	    stats->free_max_time[get_size_class_index(page_block_size)] = end -start_time;
-
-	stats->num_free_class[get_size_class_index(page_block_size)]++;
-#endif
-
-	unlock();
-}
-
-
-void cf_local_free(void **address){
+void cf_free_as_t(void **address, struct thread_data *t_data, uint64_t start_time) {
 #else
-#define cf_local_free(X) cf_free(X)
-void cf_free(void **address){
+void cf_free_as_t(void **address, struct thread_data *t_data) {
 #endif
-
-#ifdef USE_STATS
-	uint64_t start_time;
-	start_time = get_utime();
-#endif
-
-	lock();
-	cf_free(address, get_thread_data()); // assume local thread allocated object (standard if there is no remote free)
-
-
-#ifdef USE_STATS
-	struct bench_stats *stats = get_bench_stats();
-	stats->num_free++;
-	uint64_t end = get_utime();
-	stats->free_time[get_size_class_index(page_block_size)] += end - start_time;
-	if (stats->free_max_time[get_size_class_index(page_block_size)] < end - start_time)
-	    stats->free_max_time[get_size_class_index(page_block_size)] = end -start_time;
-
-	stats->num_free_class[get_size_class_index(page_block_size)]++;
-#endif
-
-	unlock();
-
-}
-
-void cf_free(void **address, struct thread_data *t_data) {
 	void *page_block;
 	struct page *target_page;
 	struct size_class *sc;
@@ -2152,9 +2100,64 @@ retry:
 	if (sc->partial_compaction_bound >= 0 && !compact_abort)
 		clear_abstract_address(address);
 
+#ifdef USE_STATS
+	struct bench_stats *stats = get_bench_stats();
+	stats->num_free++;
+	uint64_t end = get_utime();
+	stats->free_time[get_size_class_index(page_block_size)] += end - start_time;
+	if (stats->free_max_time[get_size_class_index(page_block_size)] < end - start_time)
+	    stats->free_max_time[get_size_class_index(page_block_size)] = end -start_time;
+
+	stats->num_free_class[get_size_class_index(page_block_size)]++;
+#endif
+
 	unlock_sizeClass(sc);
 	unlock_thread(t_data);
 }
+
+#ifdef REMOTE_FREE_T_LOCK
+void cf_free(void **address){
+	pthread_key_t thead_key;
+	void *page_block;
+
+#ifdef USE_STATS
+	uint64_t start_time;
+	start_time = get_utime();
+#endif
+
+	lock();
+	page_block = cf_dereference(address,0);
+#ifdef USE_STATS
+	cf_free_as_t(address,((struct page *)get_page_direct_of_page_block(page_block))->thread_mark, start_time); 
+#else
+	cf_free_as_t(address,((struct page *)get_page_direct_of_page_block(page_block))->thread_mark); // get owner thread from page header (any thread can free like this)
+#endif
+	unlock();
+}
+
+
+void cf_local_free(void **address){
+#else
+#define cf_local_free(X) cf_free(X)
+void cf_free(void **address){
+#endif
+
+#ifdef USE_STATS
+	uint64_t start_time;
+	start_time = get_utime();
+#endif
+
+	lock();
+#ifdef USE_STATS
+	cf_free_as_t(address, get_thread_data(), start_time);
+#else
+	cf_free_as_t(address, get_thread_data()); // assume local thread allocated object (standard if there is no remote free)
+#endif
+
+	unlock();
+
+}
+
 
 void *cf_dereference(void **address, int index)
 {
