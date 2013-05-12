@@ -43,7 +43,7 @@
 #include <stdint.h>
 
 
-#define REMOTE_FREE_T_LOCK
+// #define REMOTE_FREE_T_LOCK
 
 /* 
 TODO: CLEANUP
@@ -528,7 +528,7 @@ static inline void unlock_sizeClass(struct size_class *sc) { }
 
 #ifdef REMOTE_FREE_T_LOCK
 static inline void lock_thread(struct thread_data *t){
-	if (t) pthread_mutex_lock(&t->thread_lock); // only lock initialized thread
+	pthread_mutex_lock(&t->thread_lock); // only lock initialized thread
 }
 
 static inline void unlock_thread(struct thread_data *t){
