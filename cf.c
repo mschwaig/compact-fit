@@ -43,6 +43,8 @@
 #include <stdint.h>
 
 
+#define REMOTE_FREE_T_LOCK
+
 /* 
 TODO: CLEANUP
 TODO: implement page locking scheme 
@@ -198,7 +200,7 @@ struct thread_data {
 	struct mem_aa_bucket *free_abuckets;	/**< free abstract address buckets*/
 	struct size_class *size_classes;	/**< private size-classes*/
 #ifdef REMOTE_FREE_T_LOCK
-	pthread_mutex_t thread_lock;		/**< thread lock allows one thread to modify another's data */
+	pthread_mutex_t thread_lock;     	/**< thread lock allows one thread to modify another's data */
 #endif
 };
 static struct thread_data *get_thread_data();
@@ -526,7 +528,7 @@ static inline void unlock_sizeClass(struct size_class *sc) { }
 
 #ifdef REMOTE_FREE_T_LOCK
 static inline void lock_thread(struct thread_data *t){
-	pthread_mutex_lock(&t->thread_lock);
+	if (t) pthread_mutex_lock(&t->thread_lock); // only lock initialized thread
 }
 
 static inline void unlock_thread(struct thread_data *t){
@@ -1350,9 +1352,8 @@ static void init_thread(struct thread_data *data){
 	data->aas_count = 0;
 	data->aas = 0;
 
-
 #ifdef REMOTE_FREE_T_LOCK
-	data->thread_lock = PTHREAD_MUTEX_INITIALIZER;
+	pthread_mutex_init(&data->thread_lock, NULL);
 #endif
 
 	if (private_classes) {
@@ -1432,6 +1433,9 @@ static struct thread_data *get_thread_data()
 	if(!data) {
 		data = (struct thread_data *)assign_thread_specific();
 		init_thread(data);
+#ifdef lREMOTE_FREE_T_LOCK
+		lock_thread(data); // not that we have an identity, we can finally lock our thread	
+#endif
 	}
 	return data;
 }
@@ -1442,11 +1446,11 @@ static struct thread_data *get_thread_data()
 * get thread local data for another thread
 * @return thread local data
 */
-static struct thread_data *get_thread_data(pthread_key_t cf_thread_key)
+static struct thread_data *get_thread_data_via_mark(pthread_key_t cf_thread_key)
 {
 	struct thread_data *data;
 
-	data = (struct thread_data *)pthread_getspecific(cf_thead_key);
+	data = (struct thread_data *)pthread_getspecific(cf_thread_key);
 	if(!data) {
 		data = (struct thread_data *)assign_thread_specific();
 		init_thread(data);
@@ -1823,6 +1827,8 @@ void cf_init(unsigned long abstract_address_space_size,
 	assert(heap_size > 0);
 	assert(partial_compaction_bound > 0);
 
+	init_cf_key();
+
 	/*init abstract address space*/
 	aa_space = mmap(NULL, abstract_address_space_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	if(aa_space == MAP_FAILED) {
@@ -1852,8 +1858,6 @@ void cf_init(unsigned long abstract_address_space_size,
 	nr_pages = (heap_size-alignment)/PAGESIZE/nr_local_pages;
 	nr_pages *= nr_local_pages;
 	init_free_pages_list();
-
-	init_cf_key();
 
 	init_size_classes_mapping();
 
@@ -2117,8 +2121,9 @@ retry:
 
 #ifdef REMOTE_FREE_T_LOCK
 void cf_free(void **address){
-	pthread_key_t thead_key;
 	void *page_block;
+	struct page *p;
+	struct thread_data *t_data;
 
 #ifdef USE_STATS
 	uint64_t start_time;
@@ -2127,10 +2132,12 @@ void cf_free(void **address){
 
 	lock();
 	page_block = cf_dereference(address,0);
+	p = (struct page *)get_page_direct_of_page_block(page_block);
+	t_data = get_thread_data_via_mark(p->thread_mark);
 #ifdef USE_STATS
-	cf_free_as_t(address,((struct page *)get_page_direct_of_page_block(page_block))->thread_mark, start_time); 
+	cf_free_as_t(address, t_data, start_time); 
 #else
-	cf_free_as_t(address,((struct page *)get_page_direct_of_page_block(page_block))->thread_mark); // get owner thread from page header (any thread can free like this)
+	cf_free_as_t(address, t_data); // get owner thread from page header (any thread can free like this)
 #endif
 	unlock();
 }
