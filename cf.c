@@ -43,7 +43,7 @@
 #include <stdint.h>
 
 
-// #define REMOTE_FREE_T_LOCK
+#define REMOTE_FREE_T_LOCK
 
 /* 
 TODO: CLEANUP
@@ -76,7 +76,7 @@ TODO: integrate nice with benchmark
  * 160B data of page header struct + 24B lock + optionally identifier of owner thread
  */
 #ifdef REMOTE_FREE_T_LOCK
-#define PAGEHEADER 184 + sizeof(pthread_key_t)
+#define PAGEHEADER (184 + sizeof(pthread_key_t))
 #else
 #define PAGEHEADER 184
 #endif
