@@ -6,7 +6,7 @@
 #include <stdlib.h>
 
 typedef struct node_t{
-	int item;
+	void** item;
 	struct node_t* link;
 } node_t;
 
@@ -16,12 +16,22 @@ typedef struct lb_queue_t {
 	int size;
 	pthread_mutex_t lock;
 
-	void (*enqueue) (struct lb_queue_t*, int item);
-	int  (*dequeue) (struct lb_queue_t*);
+	void (*enqueue) (struct lb_queue_t*, void** item);
+	void**  (*dequeue) (struct lb_queue_t*);
+	void** (*try_dequeue) (struct lb_queue_t*);
 } lb_queue_t;
 
-void enqueue(lb_queue_t* queue, int item);
-int dequeue(lb_queue_t* queue);
-lb_queue_t create_queue();
+void enqueue(lb_queue_t* queue, void** item);
+
+/*
+ * Blocks on empty queue.
+ */
+void** dequeue(lb_queue_t* queue);
+
+/**
+ * Retruns null on empty queue.
+ */
+void** try_dequeue(lb_queue_t* queue);
+void init_lb_queue(lb_queue_t *q);
 
 #endif /* LB_QUEUE_H_ */

@@ -3,7 +3,7 @@
 
 void display(lb_queue_t* queue);
 
-void enqueue(lb_queue_t* queue, int item){
+void enqueue(lb_queue_t* queue, void** item){
 
 	pthread_mutex_lock(&queue->lock);
 
@@ -17,12 +17,12 @@ void enqueue(lb_queue_t* queue, int item){
 		queue->tail->link = n;
 	}
 	queue->tail = n;
-	queue->size++;
+	queue->size = queue->size + 1;
 
 	pthread_mutex_unlock(&queue->lock);
 }
 
-int dequeue(lb_queue_t* queue){
+void** dequeue(lb_queue_t* queue){
 
 	pthread_mutex_lock(&queue->lock);
 
@@ -33,7 +33,26 @@ int dequeue(lb_queue_t* queue){
 	}
 
 	node_t* old_head = queue->head;
-	int item = old_head->item;
+	void** item = old_head->item;
+	queue->head = old_head->link;
+	queue->size--;
+	free(old_head);
+
+	pthread_mutex_unlock(&queue->lock);
+	return item;
+}
+
+void** try_dequeue(lb_queue_t* queue){
+
+	pthread_mutex_lock(&queue->lock);
+
+	if (queue->size == 0) {
+		pthread_mutex_unlock(&queue->lock);
+		return NULL;
+	}
+
+	node_t* old_head = queue->head;
+	void** item = old_head->item;
 	queue->head = old_head->link;
 	queue->size--;
 	free(old_head);
@@ -49,22 +68,21 @@ void display(lb_queue_t* queue){
 	if (queue->head != NULL){
 		printf("( ");
 		while (tmp != NULL){ // why nonsense w/o queue->head != NULL?
-			printf("%d ", tmp->item);
+			printf("%p ", tmp->item);
 			tmp = tmp->link;
 		}
-		printf("), h: %d, t: %d, s: %d\n", queue->head->item, queue->tail->item, queue->size);
+		printf("), h: %p, t: %p, s: %d\n", queue->head->item, queue->tail->item, queue->size);
 	} else {
 		printf("(), h: NULL, t: NULL, s: 0\n");
 	}
 }
 
-lb_queue_t create_queue(){
-	lb_queue_t queue;
+void init_lb_queue(lb_queue_t *q){
+	lb_queue_t queue = *q;
 	queue.size = 0;
 	queue.head = NULL;
 	queue.tail = NULL;
 	queue.enqueue = &enqueue;
 	queue.dequeue = &dequeue;
 	pthread_mutex_init(&queue.lock, NULL);
-	return queue;
 }
