@@ -42,13 +42,15 @@ void** dequeue(lb_queue_t* queue){
 	return item;
 }
 
-void** try_dequeue(lb_queue_t* queue){
+void try_dequeue(lb_queue_t* queue, try_dequeue_ret_t* ret){
 
 	pthread_mutex_lock(&queue->lock);
 
 	if (queue->size == 0) {
 		pthread_mutex_unlock(&queue->lock);
-		return NULL;
+		ret->was_empty = true;
+		ret->value = NULL;
+		return;
 	}
 
 	node_t* old_head = queue->head;
@@ -58,7 +60,9 @@ void** try_dequeue(lb_queue_t* queue){
 	free(old_head);
 
 	pthread_mutex_unlock(&queue->lock);
-	return item;
+	ret->was_empty = false;
+	ret->value = item;
+	return;
 }
 
 void display(lb_queue_t* queue){
@@ -78,11 +82,11 @@ void display(lb_queue_t* queue){
 }
 
 void init_lb_queue(lb_queue_t *q){
-	lb_queue_t queue = *q;
-	queue.size = 0;
-	queue.head = NULL;
-	queue.tail = NULL;
-	queue.enqueue = &enqueue;
-	queue.dequeue = &dequeue;
-	pthread_mutex_init(&queue.lock, NULL);
+	q->size = 0;
+	q->head = NULL;
+	q->tail = NULL;
+	q->enqueue = &enqueue;
+	q->dequeue = &dequeue;
+	q->try_dequeue = &try_dequeue;
+	pthread_mutex_init(&q->lock, NULL);
 }

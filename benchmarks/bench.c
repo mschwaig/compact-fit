@@ -29,7 +29,7 @@ pthread_key_t bench_key;
 /* private globals */
 static volatile int run = 1;
 static pthread_t *threads;
-static int num_threads = 1;
+static int num_threads = 2;
 static int local_pages = 10000;
 static int pages_buckets = 1;
 static int local_aas = 1000000;
