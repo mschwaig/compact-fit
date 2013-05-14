@@ -1,5 +1,6 @@
 #include "lb_queue.h"
 #include <stdio.h>
+#include <stdbool.h>
 
 void display(lb_queue_t* queue);
 

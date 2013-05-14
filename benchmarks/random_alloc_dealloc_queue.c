@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
+#include <stdbool.h>
 
 #define random rdtsc
 #define STEPS 512
@@ -64,13 +65,13 @@ int bench_func(struct bench_stats *stats)
 
 	while (stats->run) {
 
-		if (random() %  3 < 2){
+		if (random() % 2){
 			mem_object = cf_malloc(next_size());
 			queue.enqueue(&queue, mem_object);
 		} else {
 			queue.try_dequeue(&queue, &ret);
 			if (ret.was_empty){
-				break;
+				continue;
 			}
 			cf_free(ret.value);
 		}
