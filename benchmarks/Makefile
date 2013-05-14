@@ -14,8 +14,8 @@ BINARIES = bench\
 
 BENCH_LIB = bench.o ../nb_stack.o ../page_stack.o ../aa_stack.o ../aa_bucket_stack.o ../threaded_queue_test/lb_queue.o
 
-CFLAGS = -O3 -DUSE_PRIVATE_ADDRESS -DUSE_STATS -Wall -I..
-LDFLAGS = -lpthread
+CFLAGS = -pthread -O3 -DUSE_PRIVATE_ADDRESS -DUSE_STATS -Wall -I..
+LDFLAGS = -pthread
 
 all: $(BINARIES)
 

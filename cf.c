@@ -1482,8 +1482,9 @@ static void inline set_abstract_address(struct page *p, int index, int page_bloc
  * @return reference to abstract address
  */
 static inline long *get_abstract_address_of_page_block(struct page *p, int page_block_index, int page_block_size){
-	return *(long **)((char *)p->memory + (page_block_index + 1)*page_block_size - sizeof(long));
-
+	long **abs_addr;
+	abs_addr = (long **)(p->memory + ((page_block_index+1)*page_block_size-sizeof(long)));
+	return *abs_addr;
 }
 
 /**
@@ -1574,7 +1575,6 @@ static int do_compaction(struct size_class *sc,	struct page *target_page, int ta
 	void **src_part_field;
 	void **target_part_field;
 	long *target_aa;
-	int abort_compact = 0;
 	int increments = 0;
 	long *src_aa;
 
@@ -1612,7 +1612,6 @@ static int do_compaction(struct size_class *sc,	struct page *target_page, int ta
 
 		*src_part_field = 0;
 
-		abort_compact = 1;
 		src_page = get_page_direct_of_page_block(src);
 
 		assert(src_page->sourceentries > 0);

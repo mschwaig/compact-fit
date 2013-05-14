@@ -12,7 +12,7 @@ all: $(BINARIES) global class page none
 	make -C benchmarks
 
 cf-unit: cf.c cf-unit-test.c
-	$(CC) -Wall -O3 -pthread -DUSE_PRIVATE_ADDRESS -I. -lpthread $(LDFLAGS) -DTESTING -DLOCK_GLOBAL -DUSE_CAS -o $@ $<
+	$(CC) -Wall -O3 -pthread -DUSE_PRIVATE_ADDRESS -I. $(LDFLAGS) -DTESTING -DLOCK_GLOBAL -DUSE_CAS -o $@ $<
 
 global: cf_global.o
 	make -C benchmarks $@
