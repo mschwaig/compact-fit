@@ -1,7 +1,7 @@
 #ifndef	_ARCH_DEP_H_
 #define _ARCH_DEP_H_
 
-#ifdef __i386__
+#if defined (__i386__) || defined(__x86_64__)
 #define LOCK_PREFIX "lock; "
 
 static __inline__ unsigned long long rdtsc(void)
@@ -119,7 +119,7 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 				     : "memory");
 		return prev;
 	case 4:
-		__asm__ __volatile__(LOCK_PREFIX "cmpxchgl %1,%2"
+		__asm__ __volatile__(LOCK_PREFIX "cmpxchgl %k1,%2"
 				     : "=a"(prev)
 				     : "r"(new), "m"(*__xg(ptr)), "0"(old)
 				     : "memory");
@@ -133,6 +133,7 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 
 #elif defined(__x86_64__)
 
+/*
 static __inline__ unsigned long long rdtsc(void)
 {
   unsigned hi, lo;
@@ -176,6 +177,9 @@ static inline long long __cmpxchg64(uint64_t *ptr, uint64_t old, uint64_t new)
 					(unsigned long long)(n)))
 
 #define ARCH_HAS_CAS64 1
+*/
+
+
 #elif __arm__
 
 /* 
