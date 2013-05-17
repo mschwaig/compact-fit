@@ -12,23 +12,23 @@ BINARIES = bench\
 		   mdrv_tlsf\
 		   mdrv_share
 
-BENCH_LIB = bench.o ../nb_stack.o ../page_stack.o ../aa_stack.o ../aa_bucket_stack.o ../threaded_queue_test/lb_queue.o
+BENCH_LIB = bench.o ../nb_stack.o ../page_stack.o ../aa_stack.o ../aa_bucket_stack.o abstract_addr_queue/lb_queue.o
 
-CFLAGS = -pthread -O3 -DUSE_PRIVATE_ADDRESS -DUSE_STATS -Wall -I..
-LDFLAGS = -pthread
+CFLAGS = -pthread -m32 -O3 -DUSE_PRIVATE_ADDRESS -DUSE_STATS -Wall -I..
+LDFLAGS = -pthread -m32 -L/usr/lib32/
 
 all: $(BINARIES)
 
-class: random_alloc_dealloc_queue.o $(BENCH_LIB) ../cf_class.o
+class:  rndm_alloc_queue_dequeue_dealloc.o $(BENCH_LIB) ../cf_class.o
 	${CC} $(LDFLAGS)  -o $@ $< $(BENCH_LIB) ../cf_class.o
 
-global: random_alloc_dealloc_queue.o $(BENCH_LIB) ../cf_global.o
+global: rndm_alloc_queue_dequeue_dealloc.o $(BENCH_LIB) ../cf_global.o
 	${CC} $(LDFLAGS)  -o $@ $< $(BENCH_LIB) ../cf_global.o
 
-page: random_alloc_dealloc_queue.o $(BENCH_LIB) ../cf_page.o
+page:   rndm_alloc_queue_dequeue_dealloc.o $(BENCH_LIB) ../cf_page.o
 	${CC} $(LDFLAGS)  -o $@ $< $(BENCH_LIB) ../cf_page.o
 
-none: random_alloc_dealloc_queue.o $(BENCH_LIB) ../cf_none.o
+none:   rndm_alloc_queue_dequeue_dealloc.o $(BENCH_LIB) ../cf_none.o
 	${CC} $(LDFLAGS)  -o $@ $< $(BENCH_LIB) ../cf_none.o
 
 single_malloc_mult_free: single_malloc_mult_free.o $(BENCH_LIB) ../cf_class.o

@@ -2,7 +2,7 @@
 #include "bench.h"
 #include "cf.h"
 #include "arch_dep.h"
-#include "threaded_queue_test/lb_queue.h"
+#include "abstract_addr_queue/lb_queue.h"
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>

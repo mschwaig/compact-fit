@@ -3,7 +3,7 @@ cpu = $(shell ./config.guess | awk 'BEGIN { FS = "-" } ; { print $$1 }' | sed 's
 
 HEADERS = cf.h arch_dep.h nb_stack.h nb_stack.o page_stack.h page_stack.o aa_stack.h aa_stack.o aa_bucket_stack.h aa_bucket_stack.o
 
-CFLAGS = -Wall -O3 -DUSE_STATS -DUSE_PRIVATE_ADDRESS -I. -DNDEBUG
+CFLAGS = -m32 -Wall -O3 -DUSE_STATS -DUSE_PRIVATE_ADDRESS -I. -DNDEBUG
 LDFLAGS = -m32 -L/usr/lib32/ nb_stack.o page_stack.o aa_stack.o aa_bucket_stack.o
 BINARIES = 
 #cf-test-global cf-test-none cf-test-class cf-test-page
