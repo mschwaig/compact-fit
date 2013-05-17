@@ -42,9 +42,6 @@
 #include <time.h>
 #include <stdint.h>
 
-
-#define REMOTE_FREE_T_LOCK
-
 /* 
 TODO: CLEANUP
 TODO: implement page locking scheme 

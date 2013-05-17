@@ -29,7 +29,7 @@ pthread_key_t bench_key;
 /* private globals */
 static volatile int run = 1;
 static pthread_t *threads;
-static int num_threads = 2;
+static int num_threads = NUM_BENCH_THREADS;
 static int local_pages = 10000;
 static int pages_buckets = 1;
 static int local_aas = 1000000;
@@ -38,9 +38,9 @@ static int aas_free_buckets = 1;
 static struct bench_stats *statistics;
 static int k = 1;
 static int block_size = 0;
-static int heap_size = 400*1024*1024;
+static long heap_size = 3000*1024*1024;
 static int aa_size = 80*1024*1024;
-static int ms_to_run = 1000;
+static int ms_to_run = 1000 * SEC_BENCH_RUNTIME;
 static int us_to_sleep = 0;
 static int mcpy_inc = 0;
 static int mcpy_mult = 1;
@@ -184,8 +184,9 @@ static void sum_stats(uint64_t run_time)
 		}
 	}
 
-	fprintf(stderr, "thrd\t#alloc  \t#compact\t#free\tnetto  \tbrutto \tused_pages  \tmax_used_pages\n");
+	fprintf(stderr, "lineflag\tthrd\t#alloc  \t#compact\t#free\tnetto  \tbrutto \tused_pages  \tmax_used_pages\n");
 	for (i=0; i<num_threads; ++i) {
+		fprintf(stderr,"TRDDTA\t"); // used to identify data lines
 		sum_allocs += statistics[i].num_alloc/(run_time/1000000);
 		sum_frees += statistics[i].num_free/(run_time/1000000);
 		fprintf(stderr, "%4d\t%9ld\t%8ld\t%5ld\t%7ld\t%7ld\t%ld\t%ld\n", 
