@@ -12,10 +12,18 @@
 #define random rdtsc
 #define STEPS 512
 
-#define BENCH_MEMORY_CACHE_SIZE 10000
+#define BENCH_MEMORY_CACHE_SIZE 1000
 
 static int us_to_sleep = 0;
 static int share = 0;
+
+
+typedef struct memory_cache_t {
+	int index;
+	address_chunk_node_t *cache[BENCH_MEMORY_CACHE_SIZE];
+} memory_cache_t;
+
+struct memory_cache_t *mem_cache[NUM_BENCH_THREADS];
 
 #define NUM_BENCH 4494
 static int alloc_sizes[NUM_BENCH];
@@ -60,17 +68,11 @@ static int next_size()
 	return get_alloc_size(get_alloc_class());
 }
 
-typedef struct memory_cache_t {
-	int index;
-	address_chunk_node_t *cache[BENCH_MEMORY_CACHE_SIZE];
-} memory_cache_t;
-
-
-inline address_chunk_node_t *cached_malloc(memory_cache_t mem_c){
+inline address_chunk_node_t *cached_malloc(memory_cache_t *pmem_c){
 	address_chunk_node_t *ret;
-	if (mem_c.index > 0) {
-		ret = mem_c.cache[mem_c.index];
-		mem_c.index--;
+	if (pmem_c->index > 0) {
+		pmem_c->index--;
+		ret = pmem_c->cache[pmem_c->index];
 		return ret;
 	} else {
 		return malloc(sizeof(address_chunk_node_t));
@@ -78,42 +80,72 @@ inline address_chunk_node_t *cached_malloc(memory_cache_t mem_c){
 
 }
 
-inline void cached_free(address_chunk_node_t *chunk, memory_cache_t mem_c){
-	if (mem_c.index >= BENCH_MEMORY_CACHE_SIZE){
-		free(chunk);
+inline void cached_free(address_chunk_node_t *chunk, memory_cache_t *pmem_c){
+	if (pmem_c->index < BENCH_MEMORY_CACHE_SIZE){
+		pmem_c->cache[pmem_c->index] = chunk;
+		pmem_c->index = pmem_c->index + 1;
 	} else {
-		mem_c.cache[mem_c.index] = chunk;
-		mem_c.index++;
+		free(chunk);
 	}
 	
 	return;
 }
 
+void fill_cache(memory_cache_t *pmem_c){
+	address_chunk_node_t *chunk;
+	while (pmem_c->index < BENCH_MEMORY_CACHE_SIZE){
+		chunk = malloc(sizeof(address_chunk_node_t));
+		cached_free(chunk, pmem_c);
+	}
+}
+
+void empty_cache(memory_cache_t *pmem_c){
+	address_chunk_node_t *chunk;
+	while (pmem_c->index > 0){
+		chunk = cached_malloc(pmem_c);
+		free(chunk);
+	}
+}
+
 int bench_func(struct bench_stats *stats)
 {
-	int index;
-	memory_cache_t mem_c;
-	address_chunk_node_t *chunk;
-	mem_c.index = 0;
+	int enq_index = 0;
+	int deq_index = LB_QUEUE_POINTER_CHUNK_SIZE;
+	memory_cache_t *mem_c;
+	address_chunk_node_t *enq_chunk;
+	address_chunk_node_t *deq_chunk;
+	address_chunk_node_t *tmp_chunk;
+	mem_c = mem_cache[stats->id];
+
+	enq_chunk = cached_malloc(mem_c);
+	deq_chunk = cached_malloc(mem_c);
 
 	while (stats->run) {
 
 		if (random() % 2){
 allocate:
-			chunk = cached_malloc(mem_c);
-			for (index = 0; index < LB_QUEUE_POINTER_CHUNK_SIZE; index++){
-				chunk->address[index] = cf_malloc(next_size());
+			if (enq_index >= LB_QUEUE_POINTER_CHUNK_SIZE){
+				queue.enqueue(&queue, enq_chunk);
+				enq_chunk = cached_malloc(mem_c);
+				enq_index = 0;
 			}
-			queue.enqueue(&queue, chunk);
+
+			enq_chunk->address[enq_index] = cf_malloc(next_size());
+			enq_index++;
 		} else {
-			chunk = queue.try_dequeue(&queue);
-			if (chunk == NULL){
-				goto allocate;
-			} else {
-			for (index = 0; index < LB_QUEUE_POINTER_CHUNK_SIZE; index++)
-				cf_free(chunk->address[index]);
+			if (deq_index >= LB_QUEUE_POINTER_CHUNK_SIZE){
+				tmp_chunk = queue.try_dequeue(&queue);
+				if (tmp_chunk == NULL){
+					goto allocate;
+				} else {
+					cached_free(deq_chunk, mem_c);
+					deq_chunk = tmp_chunk;
+					deq_index = 0;
+				}
 			}
-			cached_free(chunk, mem_c);
+
+			cf_free(deq_chunk->address[deq_index]);
+			deq_index++;
 		}
 	}	
 
@@ -149,6 +181,14 @@ void set_block_size(int size)
 		} else {
 			alloc_sizes[i] = 8;
 		}
+	}
+
+	printf("filling cache\n");
+
+	for (i = 0; i < NUM_BENCH_THREADS; i++){
+		mem_cache[i] = malloc(sizeof(memory_cache_t));
+		mem_cache[i]->index = 0;
+		fill_cache(mem_cache[i]);
 	}
 
 	init_lb_queue(&queue);
