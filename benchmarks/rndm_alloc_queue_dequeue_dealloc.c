@@ -12,6 +12,8 @@
 #define random rdtsc
 #define STEPS 512
 
+#define BENCH_MEMORY_CACHE_SIZE 10000
+
 static int us_to_sleep = 0;
 static int share = 0;
 
@@ -58,27 +60,66 @@ static int next_size()
 	return get_alloc_size(get_alloc_class());
 }
 
+typedef struct memory_cache_t {
+	int index;
+	address_chunk_node_t *cache[BENCH_MEMORY_CACHE_SIZE];
+} memory_cache_t;
+
+
+inline address_chunk_node_t *cached_malloc(memory_cache_t mem_c){
+	address_chunk_node_t *ret;
+	if (mem_c.index > 0) {
+		ret = mem_c.cache[mem_c.index];
+		mem_c.index--;
+		return ret;
+	} else {
+		return malloc(sizeof(address_chunk_node_t));
+	}
+
+}
+
+inline void cached_free(address_chunk_node_t *chunk, memory_cache_t mem_c){
+	if (mem_c.index >= BENCH_MEMORY_CACHE_SIZE){
+		free(chunk);
+	} else {
+		mem_c.cache[mem_c.index] = chunk;
+		mem_c.index++;
+	}
+	
+	return;
+}
+
 int bench_func(struct bench_stats *stats)
 {
-	void **mem_object;
-	try_dequeue_ret_t ret;
+	int index;
+	memory_cache_t mem_c;
+	address_chunk_node_t *chunk;
+	mem_c.index = 0;
 
 	while (stats->run) {
 
 		if (random() % 2){
-			mem_object = cf_malloc(next_size());
-			queue.enqueue(&queue, mem_object);
-		} else {
-			queue.try_dequeue(&queue, &ret);
-			if (ret.was_empty){
-				continue;
+allocate:
+			chunk = cached_malloc(mem_c);
+			for (index = 0; index < LB_QUEUE_POINTER_CHUNK_SIZE; index++){
+				chunk->address[index] = cf_malloc(next_size());
 			}
-			cf_free(ret.value);
+			queue.enqueue(&queue, chunk);
+		} else {
+			chunk = queue.try_dequeue(&queue);
+			if (chunk == NULL){
+				goto allocate;
+			} else {
+			for (index = 0; index < LB_QUEUE_POINTER_CHUNK_SIZE; index++)
+				cf_free(chunk->address[index]);
+			}
+			cached_free(chunk, mem_c);
 		}
 	}	
 
 	return 0;
 }
+
 
 /* called prior thread creation*/
 void set_block_size(int size)
@@ -111,7 +152,6 @@ void set_block_size(int size)
 	}
 
 	init_lb_queue(&queue);
-	printf("init done");
 }
 
 void set_sleep_time(int us)

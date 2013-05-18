@@ -2,44 +2,39 @@
 #ifndef LB_QUEUE_H_
 #define LB_QUEUE_H_
 
+#define LB_QUEUE_POINTER_CHUNK_SIZE 4000
+
 #include <pthread.h>
 #include <stdlib.h>
-#include <stdbool.h>
 
-typedef struct try_dequeue_ret_t {
-	void **value;
-	bool was_empty;
-} try_dequeue_ret_t;
-
-
-typedef struct node_t{
-	void** item;
-	struct node_t* link;
-} node_t;
+typedef struct address_chunk_node_t {
+	void **address[LB_QUEUE_POINTER_CHUNK_SIZE];
+	struct address_chunk_node_t* link;
+} address_chunk_node_t;
 
 typedef struct lb_queue_t {
-	node_t* head;
-	node_t* tail;
+	struct address_chunk_node_t* head;
+	struct address_chunk_node_t* tail;
 	int size;
 	pthread_mutex_t lock;
 
-	void (*enqueue) (struct lb_queue_t*, void** item);
-	void**  (*dequeue) (struct lb_queue_t*);
-	void (*try_dequeue) (struct lb_queue_t*, struct try_dequeue_ret_t*);
+	void (*enqueue) (struct lb_queue_t*, address_chunk_node_t* chunk);
+	address_chunk_node_t*  (*dequeue) (struct lb_queue_t*);
+	address_chunk_node_t* (*try_dequeue) (struct lb_queue_t*);
 } lb_queue_t;
 
 
-void enqueue(lb_queue_t* queue, void** item);
+void enqueue(lb_queue_t* queue, address_chunk_node_t* chunk);
 
 /*
  * Blocks on empty queue.
  */
-void** dequeue(lb_queue_t* queue);
+address_chunk_node_t* dequeue(lb_queue_t* queue);
 
 /**
- * Retruns null on empty queue.
+ * Returns NULL on empty queue.
  */
-void try_dequeue(lb_queue_t* queue, try_dequeue_ret_t* ret);
+address_chunk_node_t* try_dequeue(lb_queue_t* queue);
 void init_lb_queue(lb_queue_t *q);
 
 #endif /* LB_QUEUE_H_ */

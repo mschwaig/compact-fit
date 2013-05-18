@@ -1,29 +1,26 @@
 #include "lb_queue.h"
 #include <stdio.h>
-#include <stdbool.h>
 
 void display(lb_queue_t* queue);
 
-void enqueue(lb_queue_t* queue, void** item){
+void enqueue(lb_queue_t* queue, address_chunk_node_t *chunk){
 
 	pthread_mutex_lock(&queue->lock);
 
-	node_t* n = (node_t*) malloc(sizeof(node_t));
-	n->item = item;
-	n->link = NULL;
+	chunk->link = NULL;
 
 	if(queue->head == NULL){
-		queue->head = n;
+		queue->head = chunk;
 	} else {
-		queue->tail->link = n;
+		queue->tail->link = chunk;
 	}
-	queue->tail = n;
+	queue->tail = chunk;
 	queue->size = queue->size + 1;
 
 	pthread_mutex_unlock(&queue->lock);
 }
 
-void** dequeue(lb_queue_t* queue){
+address_chunk_node_t* dequeue(lb_queue_t* queue){
 
 	pthread_mutex_lock(&queue->lock);
 
@@ -33,50 +30,42 @@ void** dequeue(lb_queue_t* queue){
 		pthread_mutex_lock(&queue->lock);
 	}
 
-	node_t* old_head = queue->head;
-	void** item = old_head->item;
+	address_chunk_node_t* old_head = queue->head;
 	queue->head = old_head->link;
 	queue->size--;
-	free(old_head);
 
 	pthread_mutex_unlock(&queue->lock);
-	return item;
+	return old_head;
 }
 
-void try_dequeue(lb_queue_t* queue, try_dequeue_ret_t* ret){
+address_chunk_node_t* try_dequeue(lb_queue_t* queue){
 
 	pthread_mutex_lock(&queue->lock);
 
 	if (queue->size == 0) {
 		pthread_mutex_unlock(&queue->lock);
-		ret->was_empty = true;
-		ret->value = NULL;
-		return;
+		return NULL;
 	}
 
-	node_t* old_head = queue->head;
-	void** item = old_head->item;
+	address_chunk_node_t* old_head = queue->head;
 	queue->head = old_head->link;
 	queue->size--;
-	free(old_head);
 
 	pthread_mutex_unlock(&queue->lock);
-	ret->was_empty = false;
-	ret->value = item;
-	return;
+	return old_head;
 }
 
 void display(lb_queue_t* queue){
-	node_t* tmp = queue->head;
+	address_chunk_node_t* tmp = queue->head;
 
 
 	if (queue->head != NULL){
 		printf("( ");
-		while (tmp != NULL){ // why nonsense w/o queue->head != NULL?
-			printf("%p ", tmp->item);
+		while (tmp != NULL){
+			printf("%p ", tmp->address);
 			tmp = tmp->link;
 		}
-		printf("), h: %p, t: %p, s: %d\n", queue->head->item, queue->tail->item, queue->size);
+		printf("), h: %p, t: %p, s: %d\n", queue->head->address, queue->tail->address, queue->size);
 	} else {
 		printf("(), h: NULL, t: NULL, s: 0\n");
 	}
