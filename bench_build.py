@@ -24,17 +24,15 @@ shutil.rmtree("benchmarks/results/")
 shutil.os.mkdir("benchmarks/results/")
 
 ncf_results = open("benchmarks/results/ncf_t_results.log","w")
+
+call(["make","clean"])
+call(["make","CC=gcc-4.4","CPPFLAGS=-DREMOTE_FREE_T_LOCK"])
+
 print("threads allocs frees compacts",file=ncf_results);
-	
 
 for threads in range(1,thread_count+1):
-	call(["make","clean"])
-	call(["make","CC=gcc-4.4","CPPFLAGS=-DNUM_BENCH_THREADS="+str(threads)+" -DSEC_BENCH_RUNTIME=1 -DREMOTE_FREE_T_LOCK"])
 	f = open("benchmarks/results/page_"+str(threads)+"t.log","w+")
-	call(["benchmarks/page"],stderr=f)
+	call(["benchmarks/page","-n",str(threads)],stderr=f)
 	parse_result(f)
-	f.close()
-	f = open("benchmarks/results/class_"+str(threads)+"t.log","w+")
-	call(["benchmarks/class"],stderr=f)
 	f.close()
 ncf_results.close()

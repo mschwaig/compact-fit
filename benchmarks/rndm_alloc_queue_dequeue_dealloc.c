@@ -23,7 +23,7 @@ typedef struct memory_cache_t {
 	address_chunk_node_t *cache[BENCH_MEMORY_CACHE_SIZE];
 } memory_cache_t;
 
-struct memory_cache_t *mem_cache[NUM_BENCH_THREADS];
+struct memory_cache_t **mem_cache;
 
 #define NUM_BENCH 4494
 static int alloc_sizes[NUM_BENCH];
@@ -157,6 +157,7 @@ allocate:
 void set_block_size(int size)
 {
 	int i;
+	int num_threads = get_num_threads();
 
 	share = size;
 	printf("use share value %d\n", share);
@@ -185,7 +186,9 @@ void set_block_size(int size)
 
 	printf("filling cache\n");
 
-	for (i = 0; i < NUM_BENCH_THREADS; i++){
+	mem_cache = malloc(num_threads*sizeof(memory_cache_t));	
+
+	for (i = 0; i < num_threads; i++){
 		mem_cache[i] = malloc(sizeof(memory_cache_t));
 		mem_cache[i]->index = 0;
 		fill_cache(mem_cache[i]);

@@ -29,7 +29,7 @@ pthread_key_t bench_key;
 /* private globals */
 static volatile int run = 1;
 static pthread_t *threads;
-static int num_threads = NUM_BENCH_THREADS;
+static int num_threads = 1;
 static int local_pages = 10000;
 static int pages_buckets = 1;
 static int local_aas = 1000000;
@@ -40,7 +40,7 @@ static int k = 1;
 static int block_size = 0;
 static long heap_size = 3000*1024*1024;
 static int aa_size = 80*1024*1024;
-static int ms_to_run = 1000 * SEC_BENCH_RUNTIME;
+static int ms_to_run = 1000;
 static int us_to_sleep = 0;
 static int mcpy_inc = 0;
 static int mcpy_mult = 1;
