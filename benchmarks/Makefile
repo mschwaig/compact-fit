@@ -1,4 +1,4 @@
-SOURCES = $(wildcard *.c)
+SURCES = $(wildcard *.c)
 HEADERS = $(wildcard *.h)
 OBJECTS = $(patsubst %.c,%.o,$(SOURCES))
 BINARIES = bench\
@@ -7,6 +7,7 @@ BINARIES = bench\
 		   none\
 		   class\
 		   global\
+		   page\
 		   single_malloc_mult_free\
 		   mdrv_test\
 		   mdrv_tlsf\

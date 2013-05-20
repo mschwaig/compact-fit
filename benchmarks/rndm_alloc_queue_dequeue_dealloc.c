@@ -9,13 +9,13 @@
 #include <pthread.h>
 #include <stdbool.h>
 
-#define random rdtsc
 #define STEPS 512
 
 #define BENCH_MEMORY_CACHE_SIZE 1000
 
 static int us_to_sleep = 0;
 static int share = 0;
+static long int *thread_seed;
 
 
 typedef struct memory_cache_t {
@@ -50,8 +50,7 @@ static int get_alloc_size(int class)
 	return retval;
 }
 
-static int get_alloc_class()
-{
+static int get_alloc_class(){
 #if 1
 	int retval;
 	retval = random() % NUM_BENCH;
@@ -61,11 +60,14 @@ static int get_alloc_class()
 #endif
 }
 
-static int next_size()
-{
-	//return rdtsc() % 16272;
+static int next_size(struct drand48_data *pseed){
+	long int size;
+	// TODO: use exponentially distributed values for this as suggested by D. Knuth in TAOCP Vol1 iirc
+	// using uniform distribution for now
+	lrand48_r(pseed, &size);
+	//if (!size) size = 1; // no zero
+	return size % 16000;
 
-	return get_alloc_size(get_alloc_class());
 }
 
 inline address_chunk_node_t *cached_malloc(memory_cache_t *pmem_c){
@@ -111,18 +113,22 @@ int bench_func(struct bench_stats *stats)
 {
 	int enq_index = 0;
 	int deq_index = LB_QUEUE_POINTER_CHUNK_SIZE;
+	long int rnd;
+	struct drand48_data seed;
 	memory_cache_t *mem_c;
 	address_chunk_node_t *enq_chunk;
 	address_chunk_node_t *deq_chunk;
 	address_chunk_node_t *tmp_chunk;
 	mem_c = mem_cache[stats->id];
 
+	srand48_r(thread_seed[stats->id],&seed);
+
 	enq_chunk = cached_malloc(mem_c);
 	deq_chunk = cached_malloc(mem_c);
 
 	while (stats->run) {
-
-		if (random() % 2){
+		lrand48_r(&seed,&rnd);
+		if (rnd%2){
 allocate:
 			if (enq_index >= LB_QUEUE_POINTER_CHUNK_SIZE){
 				queue.enqueue(&queue, enq_chunk);
@@ -130,7 +136,7 @@ allocate:
 				enq_index = 0;
 			}
 
-			enq_chunk->address[enq_index] = cf_malloc(next_size());
+			enq_chunk->address[enq_index] = cf_malloc(next_size(&seed));
 			enq_index++;
 		} else {
 			if (deq_index >= LB_QUEUE_POINTER_CHUNK_SIZE){
@@ -158,6 +164,7 @@ void set_block_size(int size)
 {
 	int i;
 	int num_threads = get_num_threads();
+	struct drand48_data seed;
 
 	share = size;
 	printf("use share value %d\n", share);
@@ -188,10 +195,20 @@ void set_block_size(int size)
 
 	mem_cache = malloc(num_threads*sizeof(memory_cache_t));	
 
+	
+
 	for (i = 0; i < num_threads; i++){
 		mem_cache[i] = malloc(sizeof(memory_cache_t));
 		mem_cache[i]->index = 0;
 		fill_cache(mem_cache[i]);
+	}
+
+	thread_seed = malloc(num_threads*sizeof(long int));
+	
+	srand48_r(rdtsc(), &seed);
+
+	for (i = 0; i< num_threads; i++) {
+		thread_seed[i] = mrand48_r(&seed, &thread_seed[i]);
 	}
 
 	init_lb_queue(&queue);
