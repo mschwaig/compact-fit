@@ -1572,6 +1572,7 @@ static int do_compaction(struct size_class *sc,	struct page *target_page, int ta
 	void **src_part_field;
 	void **target_part_field;
 	long *target_aa;
+	int abort_compact = 0;
 	int increments = 0;
 	long *src_aa;
 
@@ -1608,6 +1609,8 @@ static int do_compaction(struct size_class *sc,	struct page *target_page, int ta
 		do_free_source_state(sc, src_page);
 
 		*src_part_field = 0;
+
+		abort_compact = 1;
 
 		src_page = get_page_direct_of_page_block(src);
 
@@ -1982,8 +1985,6 @@ void cf_free_as_t(void **address, struct thread_data *t_data) {
 	int target_index;
 	long *target_aa;
 
-	lock_thread(t_data);
-
 	/*no compaction*/
 	if (!compaction_on(t_data->size_classes)){
 		/*no abstract address*/
@@ -1992,6 +1993,7 @@ void cf_free_as_t(void **address, struct thread_data *t_data) {
 		target_page = (struct page *)get_page_direct_of_page_block(page_block);
 		sc = get_size_class_of_page(target_page);
 
+		lock_thread(t_data);
 		lock_sizeClass(sc);
 	}
 	/*try to get size-class lock
@@ -2000,22 +2002,39 @@ void cf_free_as_t(void **address, struct thread_data *t_data) {
 retry:
 		/*dereference the abstract address*/
 		page_block = *address;
-
 		target_page = (struct page *)get_page_direct_of_page_block(page_block);
 		sc = get_size_class_of_page(target_page);
 
 		/*take lock optimistically*/
+#ifdef REMOTE_FREE_T_LOCK
+		t_data = get_thread_data_via_mark(p->thread_mark);
+#endif
+
+		if (!t_data) printf("woopsie!");
+		lock_thread(t_data);
+
+		/*dereference the abstract address*/
+		page_block = *address;
+		target_page = (struct page *)get_page_direct_of_page_block(page_block);
+
+#ifdef REMOTE_FREE_T_LOCK
+		if (t_data != get_thread_data_via_mark(target_page->thread_mark)){
+			unlock_thread(t_data);
+			goto retry;
+		}
+#endif
+
 		lock_sizeClass(sc);
 
 		/*dereference the abstract address*/
 		page_block = *address;
-
 		target_page = (struct page *)get_page_direct_of_page_block(page_block);
 
 		/*synchronize over size-class, if same size-class then we are fine*/
 		if (sc != get_size_class_of_page(target_page)) {
 			/* we got the wrong lock! --> backtrack */
 			unlock_sizeClass(sc);
+			unlock_thread(t_data);
 			goto retry;
 		}
 
