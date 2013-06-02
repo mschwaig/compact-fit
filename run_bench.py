@@ -39,8 +39,10 @@ for tmp in os.listdir(res_folder):	 # clean up result folder
 	except Exxception, e:
 		print(e)
 
-call(["make","clean"])
-call(["make","CC=gcc-4.4"])
+if(call(["make","clean"]) != 0):
+	raise error("clean failed")
+if(call(["make","CC=gcc-4.4"]) != 0):
+	raise error("make failed")
 
 
 bench_run("global")
