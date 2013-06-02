@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 from subprocess import call
-import shutil
+import os
 
 thread_count = 10
 
@@ -30,8 +30,14 @@ def bench_run(locking_scheme):
 		f_run_results.close()
 	f_results.close()
 
-shutil.rmtree("benchmarks/results/")
-shutil.os.mkdir("benchmarks/results/")
+res_folder = "benchmarks/results/"
+
+for tmp in os.listdir(res_folder):	 # clean up result folder
+	tmp_path = os.path.join(res_folder, tmp)
+	try:
+		os.unlink(tmp_path)
+	except Exxception, e:
+		print(e)
 
 call(["make","clean"])
 call(["make","CC=gcc-4.4"])
