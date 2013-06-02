@@ -8,7 +8,7 @@ LDFLAGS = -m32 -L/usr/lib32/ nb_stack.o page_stack.o aa_stack.o aa_bucket_stack.
 BINARIES = 
 #cf-test-global cf-test-none cf-test-class cf-test-page
 
-all: $(BINARIES) global class page none
+all: $(BINARIES) global class page thread none
 	make -C benchmarks
 
 cf-unit: cf.c cf-unit-test.c
@@ -21,6 +21,9 @@ class: cf_class.o
 	make -C benchmarks $@
 
 page: cf_page.o
+	make -C benchmarks $@
+
+thread: cf_thread.o
 	make -C benchmarks $@
 
 none: cf_none.o
@@ -37,6 +40,9 @@ cf-test-class: main.o cf_class.o
 cf-test-page: main.o cf_page.o
 	$(CC) $(LDFLAGS) -o $@ $^
 
+cf-test-thread: main.o cf_thread.o
+	$(CC) $(LDFLAGS) -p $@ $^
+
 cf_global.o: cf.c $(HEADERS)
 	$(CC) $(CFLAGS) -DLOCK_GLOBAL -c -o $@ $<
 
@@ -45,6 +51,9 @@ cf_class.o: cf.c $(HEADERS)
 
 cf_page.o: cf.c $(HEADERS)
 	$(CC) $(CFLAGS) -DLOCK_PAGE -c -o $@ $<
+
+cf_thread.o: cf.c $(HEADERS)
+	$(CC) $(CFLAGS) -DLOCK_THREAD -c -o $@ $<
 
 cf_none.o: cf.c $(HEADERS)
 	$(CC) $(CFLAGS) -DLOCK_NONE -c -o $@ $<

@@ -72,7 +72,7 @@ TODO: integrate nice with benchmark
 /**
  * 160B data of page header struct + 24B lock + optionally identifier of owner thread
  */
-#ifdef REMOTE_FREE_T_LOCK
+#ifdef LOCK_THREAD
 #define PAGEHEADER (184 + sizeof(pthread_key_t))
 #else
 #define PAGEHEADER 184
@@ -145,7 +145,7 @@ struct page {
 	struct size_class *sc;			/**< reference to size-class*/
 	uint32_t used_page_block_bitmap[34]; 	/**< 2-dimensional bitmap to find used/free page blocks*/
 	pthread_mutex_t lock;			/**< page lock*/
-#ifdef REMOTE_FREE_T_LOCK
+#ifdef LOCK_THREAD
 	pthread_key_t thread_mark;		/**< idenitfy owner thread by this mark*/
 #endif
 };
@@ -196,7 +196,7 @@ struct thread_data {
 	int free_abuckets_count;		/**< number of free abstract address buckets*/
 	struct mem_aa_bucket *free_abuckets;	/**< free abstract address buckets*/
 	struct size_class *size_classes;	/**< private size-classes*/
-#ifdef REMOTE_FREE_T_LOCK
+#ifdef LOCK_THREAD
 	pthread_mutex_t thread_lock;     	/**< thread lock allows one thread to modify another's data */
 #endif
 };
@@ -395,6 +395,10 @@ static inline void lock_sizeClass(struct size_class *sc) { }
 
 static inline void unlock_sizeClass(struct size_class *sc) { }
 
+static inline void lock_thread(struct thread_data *t) { }
+
+static inline void unlock_thread(struct thread_data *t ){ }
+
 #elif defined(LOCK_CLASS) || defined(LOCK_PAGE)
 static inline void lock() { }
 
@@ -494,6 +498,57 @@ static inline void unlock_sizeClass(struct size_class *sc)
 		atomic_dec(&sc->workers);
 }
 
+static inline void lock_thread(struct thread_data *t) { }
+
+static inline void unlock_thread(struct thread_data *t ){ }
+
+#elif LOCK_THREAD
+static inline void lock() { }
+
+static inline void unlock() { }
+
+static pthread_mutex_t page_list_lock = PTHREAD_MUTEX_INITIALIZER;
+static inline void lock_free_page()
+{
+	pthread_mutex_lock(&page_list_lock);
+}
+
+static inline void unlock_free_page()
+{
+	pthread_mutex_unlock(&page_list_lock);
+}
+
+static pthread_mutex_t address_list_lock = PTHREAD_MUTEX_INITIALIZER;
+static inline void lock_free_address()
+{
+	pthread_mutex_lock(&address_list_lock);
+}
+
+static inline void unlock_free_address()
+{
+	pthread_mutex_unlock(&address_list_lock);
+}
+
+static inline void init_page_lock(struct page *page) { }
+
+static inline void lock_page(struct page *page) { }
+
+static inline void unlock_page(struct page *page) { }
+
+static inline void init_sizeClass_lock(struct size_class *sc) { }
+
+static inline void lock_sizeClass(struct size_class *sc) { }
+
+static inline void unlock_sizeClass(struct size_class *sc) { }
+
+static inline void lock_thread(struct thread_data *t){
+	pthread_mutex_lock(&t->thread_lock); // only lock initialized threads
+}
+
+static inline void unlock_thread(struct thread_data *t){
+	pthread_mutex_unlock(&t->thread_lock);
+}
+
 #elif LOCK_NONE
 /* all noops */
 static inline void lock() { }
@@ -519,21 +574,13 @@ static inline void init_sizeClass_lock(struct size_class *sc) { }
 static inline void lock_sizeClass(struct size_class *sc) { }
 
 static inline void unlock_sizeClass(struct size_class *sc) { }
+
+static inline void lock_thread(struct thread_data *t) { }
+
+static inline void unlock_thread(struct thread_data *t ){ }
+
 #else
 #error unknown locking scheme
-#endif
-
-#ifdef REMOTE_FREE_T_LOCK
-static inline void lock_thread(struct thread_data *t){
-	pthread_mutex_lock(&t->thread_lock); // only lock initialized thread
-}
-
-static inline void unlock_thread(struct thread_data *t){
-	pthread_mutex_unlock(&t->thread_lock);
-}
-#else
-static inline void lock_thread(struct thread_data *t) { }
-static inline void unlock_thread(struct thread_data *t ){ }
 #endif
 
 /////////////////////////////////////////////////////////////////////
@@ -805,7 +852,7 @@ static inline struct page *get_free_page(){
 #endif
 	}
 
-#ifdef REMOTE_FREE_T_LOCK
+#ifdef LOCK_THREAD
 	p->thread_mark = cf_key;
 #endif
 
@@ -1349,7 +1396,7 @@ static void init_thread(struct thread_data *data){
 	data->aas_count = 0;
 	data->aas = 0;
 
-#ifdef REMOTE_FREE_T_LOCK
+#ifdef LOCK_THREAD
 	pthread_mutex_init(&data->thread_lock, NULL);
 #endif
 
@@ -1434,7 +1481,7 @@ static struct thread_data *get_thread_data()
 	return data;
 }
 
-#ifdef REMOTE_FREE_T_LOCK
+#ifdef LOCK_THREAD
 
 /**
 * get thread local data for another thread
@@ -1868,7 +1915,7 @@ void **cf_malloc(size_t size){
 	struct page *p;
 	int index;
 	void **address = (void **)0x123;
-#ifdef REMOTE_FREE_T_LOCK
+#ifdef LOCK_THREAD
 	struct thread_data *t_data;
 #endif
 
@@ -1889,7 +1936,7 @@ void **cf_malloc(size_t size){
 	page_block_size = get_page_block_size_of_size_class(sc);
 
 	lock();
-#ifdef REMOTE_FREE_T_LOCK
+#ifdef LOCK_THREAD
 	t_data = get_thread_data();
 	lock_thread(t_data);
 #endif
@@ -1947,7 +1994,7 @@ void **cf_malloc(size_t size){
 	}
 
 	unlock_sizeClass(sc);
-#ifdef REMOTE_FREE_T_LOCK
+#ifdef LOCK_THREAD
 	unlock_thread(t_data);
 #endif
 	unlock();
@@ -2006,18 +2053,22 @@ retry:
 		sc = get_size_class_of_page(target_page);
 
 		/*take lock optimistically*/
-#ifdef REMOTE_FREE_T_LOCK
-		t_data = get_thread_data_via_mark(p->thread_mark);
+#ifdef LOCK_THREAD
+		t_data = get_thread_data_via_mark(target_page->thread_mark);
 #endif
 
-		if (!t_data) printf("woopsie!");
-		lock_thread(t_data);
+		if (!t_data){
+			printf("woopsie!");
+			goto retry;
+		} else {
+			lock_thread(t_data);
+		}
 
 		/*dereference the abstract address*/
 		page_block = *address;
 		target_page = (struct page *)get_page_direct_of_page_block(page_block);
 
-#ifdef REMOTE_FREE_T_LOCK
+#ifdef LOCK_THREAD
 		if (t_data != get_thread_data_via_mark(target_page->thread_mark)){
 			unlock_thread(t_data);
 			goto retry;
@@ -2131,7 +2182,7 @@ retry:
 	unlock_thread(t_data);
 }
 
-#ifdef REMOTE_FREE_T_LOCK
+#ifdef LOCK_THREAD
 void cf_free(void **address){
 	void *page_block;
 	struct page *p;
