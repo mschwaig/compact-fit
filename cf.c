@@ -349,6 +349,8 @@ static int max_pages_count = 0;
 // Locks
 ////////////////////////////////////////////////////////////////////////////////////////
 
+static pthread_mutex_t thread_creation_lock = PTHREAD_MUTEX_INITIALIZER;
+
 #if LOCK_GLOBAL
 static pthread_mutex_t global_alloc_lock = PTHREAD_MUTEX_INITIALIZER;
 static inline void lock()
@@ -1397,7 +1399,9 @@ static void init_thread(struct thread_data *data){
 	data->aas = 0;
 
 #ifdef LOCK_THREAD
-	pthread_mutex_init(&data->thread_lock, NULL);
+	int ret = pthread_mutex_init(&data->thread_lock, NULL);
+	printf("creating mutex %d", ret);
+	if (ret) exit(-1);
 #endif
 
 	if (private_classes) {
@@ -1471,14 +1475,7 @@ static void *assign_thread_specific()
  */
 static struct thread_data *get_thread_data()
 {
-	struct thread_data *data;
-
-	data = (struct thread_data *)pthread_getspecific(cf_key);
-	if(!data) {
-		data = (struct thread_data *)assign_thread_specific();
-		init_thread(data);
-	}
-	return data;
+	return (struct thread_data *)pthread_getspecific(cf_key);	
 }
 
 #ifdef LOCK_THREAD
@@ -1489,14 +1486,7 @@ static struct thread_data *get_thread_data()
 */
 static struct thread_data *get_thread_data_via_mark(pthread_key_t cf_thread_key)
 {
-	struct thread_data *data;
-
-	data = (struct thread_data *)pthread_getspecific(cf_thread_key);
-	if(!data) {
-		data = (struct thread_data *)assign_thread_specific();
-		init_thread(data);
-	}
-	return data;
+	return (struct thread_data *)pthread_getspecific(cf_thread_key);
 }
 
 #endif
@@ -1915,9 +1905,7 @@ void **cf_malloc(size_t size){
 	struct page *p;
 	int index;
 	void **address = (void **)0x123;
-#ifdef LOCK_THREAD
 	struct thread_data *t_data;
-#endif
 
 #ifdef USE_STATS
 	uint64_t start_time;
@@ -1936,10 +1924,18 @@ void **cf_malloc(size_t size){
 	page_block_size = get_page_block_size_of_size_class(sc);
 
 	lock();
-#ifdef LOCK_THREAD
+
 	t_data = get_thread_data();
+	if(t_data == NULL){	// the specific key of any thread can only be uninitialized
+				// here since free can only be called on a specific threads
+				// data after calling malloc
+		pthread_mutex_lock(&thread_creation_lock);
+		t_data = (struct thread_data *)assign_thread_specific();
+		init_thread(t_data);
+		pthread_mutex_unlock(&thread_creation_lock);
+	}
+
 	lock_thread(t_data);
-#endif
 	lock_sizeClass(sc);
 
 	/*first page in size-class or size class is full => beginn new page*/
