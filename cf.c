@@ -349,8 +349,6 @@ static int max_pages_count = 0;
 // Locks
 ////////////////////////////////////////////////////////////////////////////////////////
 
-static pthread_mutex_t thread_creation_lock = PTHREAD_MUTEX_INITIALIZER;
-
 #if LOCK_GLOBAL
 static pthread_mutex_t global_alloc_lock = PTHREAD_MUTEX_INITIALIZER;
 static inline void lock()
@@ -1912,6 +1910,14 @@ void **cf_malloc(size_t size){
 	start_time = get_utime();
 #endif
 
+	t_data = get_thread_data();
+	if(t_data == NULL){	// the specific key of any thread can only be uninitialized
+				// here since free can only be called on a specific threads
+				// data after calling malloc
+		t_data = (struct thread_data *)assign_thread_specific();
+		init_thread(t_data);
+	}
+
 	/*add size of explicit reference*/
 	size += sizeof(uint32_t);
 
@@ -1924,16 +1930,6 @@ void **cf_malloc(size_t size){
 	page_block_size = get_page_block_size_of_size_class(sc);
 
 	lock();
-
-	t_data = get_thread_data();
-	if(t_data == NULL){	// the specific key of any thread can only be uninitialized
-				// here since free can only be called on a specific threads
-				// data after calling malloc
-		pthread_mutex_lock(&thread_creation_lock);
-		t_data = (struct thread_data *)assign_thread_specific();
-		init_thread(t_data);
-		pthread_mutex_unlock(&thread_creation_lock);
-	}
 
 	lock_thread(t_data);
 	lock_sizeClass(sc);
