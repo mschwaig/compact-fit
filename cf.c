@@ -1400,9 +1400,6 @@ static void init_thread(struct thread_data *data){
 	int ret = pthread_mutex_init(&data->thread_lock, NULL);
 	printf("creating mutex %d", ret);
 	if (ret) exit(-1);
-
-	// if threads are created and destroyed dynamically there has to be a list of free thread_data_table entries
-	thread_data_table = malloc(sizeof(struct thread_data *)*MAX_NUM_THREADS);
 #endif
 
 	if (private_classes) {
@@ -1876,6 +1873,15 @@ void cf_init(unsigned long abstract_address_space_size,
 	assert(nr_aas > 0);
 	assert(heap_size > 0);
 	assert(partial_compaction_bound > 0);
+
+#ifdef LOCK_THREAD
+	// if threads are created and destroyed dynamically there has to be a list of free thread_data_table entries
+	thread_data_table = malloc(sizeof(struct thread_data *)*MAX_NUM_THREADS);
+	int i;
+	for (i = 0; i < MAX_NUM_THREADS; i++){
+		thread_data_table[i] = NULL;
+	}
+#endif
 
 	init_cf_key();
 
