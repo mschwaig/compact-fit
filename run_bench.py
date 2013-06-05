@@ -25,7 +25,7 @@ def bench_run(locking_scheme):
 	print("threads allocs frees compacts",file=f_results);
 	for threads in range(1,thread_count+1):
 		f_run_results = open("benchmarks/results/" + str(locking_scheme) + "_" + str(threads) + "t.log","w+")
-		call(["benchmarks/" + str(locking_scheme),"-n",str(threads)],stderr=f_run_results)
+		call(["benchmarks/" + str(locking_scheme),"-n",str(threads),"-p","--partial-comp","-1"],stderr=f_run_results)
 		parse_run_result(f_run_results, f_results, threads)
 		f_run_results.close()
 	f_results.close()

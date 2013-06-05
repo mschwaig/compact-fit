@@ -1397,9 +1397,10 @@ static void init_thread(struct thread_data *data){
 	data->aas = 0;
 
 #ifdef LOCK_THREAD
-	int ret = pthread_mutex_init(&data->thread_lock, NULL);
-	printf("creating mutex %d", ret);
-	if (ret) exit(-1);
+	if((errno = pthread_mutex_init(&data->thread_lock, NULL))){
+		perror("thread mutex creation failed");
+		exit(-100);
+	}
 #endif
 
 	if (private_classes) {
@@ -1493,6 +1494,7 @@ static void set_thread_data_to_local(){
 	thread_data_table[t->id] = t;
 }
 #else
+
 /**
  * get thread local data
  * @return thread local data
@@ -1501,9 +1503,13 @@ static struct thread_data *get_thread_data(){
 	return (struct thread_data *)pthread_getspecific(cf_key);
 }
 
-static void set_thread_data(struct page *p){}
+// static void set_thread_data(struct page *p){}
 static void set_thread_data_to_local(){}
 #endif
+
+static int has_thread_data(){
+	return (pthread_getspecific(cf_key) != NULL);
+}
 
 /////////////////////////////////////////////////////////////////////
 // Compact-fit
@@ -1935,14 +1941,14 @@ void **cf_malloc(size_t size){
 	start_time = get_utime();
 #endif
 
-	t_data = get_thread_data();
-	if(t_data == NULL){	// the specific key of any thread can only be uninitialized
+	if(!has_thread_data()){	// the specific key of any thread can only be uninitialized
 				// here since free can only be called on a specific threads
 				// data after calling malloc
 		t_data = (struct thread_data *)assign_thread_specific();
 		init_thread(t_data);
-		set_thread_data_to_local();
 	}
+
+	set_thread_data_to_local();
 
 	/*add size of explicit reference*/
 	size += sizeof(uint32_t);
@@ -2045,7 +2051,9 @@ void cf_free(void **address) {
 	char *target_block;
 	int target_index;
 	long *target_aa;
+#ifdef LOCK_THREAD
 	struct thread_data *t_data;
+#endif
 #ifdef USE_STATS
 	uint64_t start_time;
 	start_time = get_utime();
@@ -2093,13 +2101,12 @@ retry:
 		target_page = (struct page *)get_page_direct_of_page_block(page_block);
 
 #ifdef LOCK_THREAD
-		if (t_data != NULL && t_data != get_thread_data()){
+		if (t_data != NULL || t_data != get_thread_data()){
 			unlock_thread();
 			goto retry;
 		}
 #endif
-		if((sc = get_size_class_of_page(target_page)) != NULL) lock_sizeClass(sc);
-		else {unlock_thread(); goto retry;}
+		if((target_page == NULL) || (sc = get_size_class_of_page(target_page)) == NULL){unlock_thread(); goto retry;} else lock_sizeClass(sc);
 
 		/*dereference the abstract address*/
 		page_block = *address;
