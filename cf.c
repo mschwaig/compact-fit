@@ -146,7 +146,7 @@ struct page {
 	uint32_t used_page_block_bitmap[34]; 	/**< 2-dimensional bitmap to find used/free page blocks*/
 	pthread_mutex_t lock;			/**< page lock*/
 #ifdef LOCK_THREAD
-	pthread_key_t thread_mark;		/**< idenitfy owner thread by this mark*/
+	struct thread_data *thread_mark;	/**< creator thread data for free by other thread*/
 #endif
 };
 
@@ -178,11 +178,7 @@ struct size_class {
  * private thread data
  */
 struct thread_data {
-	int id;					/**< thread id*/ /*TODO:
-			limit this to 8 or 16 bit and make it FAST to identify owner thread
-			since we want to save the thread id of a thread that uses a page
-			on the page directly, so that free can be called by every thread
-						*/
+	int id;					/**< thread id*/
 	int pages_count;			/**< number of local pages*/
 	struct mem_page *pages;			/**< local pages*/
 	int pbuckets_count;			/**< number of local page buckets*/
@@ -344,6 +340,10 @@ static char global_classes[THREAD_LOCAL_PAGES*MACHINE_PAGESIZE];
 static int pages_count = 0;
 static int max_pages_count = 0;
 
+#ifdef LOCK_THREAD
+#define MAX_NUM_THREADS 100
+static struct thread_data **thread_data_table;
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Locks
@@ -395,9 +395,9 @@ static inline void lock_sizeClass(struct size_class *sc) { }
 
 static inline void unlock_sizeClass(struct size_class *sc) { }
 
-static inline void lock_thread(struct thread_data *t) { }
+static inline void lock_thread() { }
 
-static inline void unlock_thread(struct thread_data *t ){ }
+static inline void unlock_thread(){ }
 
 #elif defined(LOCK_CLASS) || defined(LOCK_PAGE)
 static inline void lock() { }
@@ -498,9 +498,9 @@ static inline void unlock_sizeClass(struct size_class *sc)
 		atomic_dec(&sc->workers);
 }
 
-static inline void lock_thread(struct thread_data *t) { }
+static inline void lock_thread() { }
 
-static inline void unlock_thread(struct thread_data *t ){ }
+static inline void unlock_thread(){ }
 
 #elif LOCK_THREAD
 static inline void lock() { }
@@ -541,12 +541,12 @@ static inline void lock_sizeClass(struct size_class *sc) { }
 
 static inline void unlock_sizeClass(struct size_class *sc) { }
 
-static inline void lock_thread(struct thread_data *t){
-	pthread_mutex_lock(&t->thread_lock); // only lock initialized threads
+static inline void lock_thread(){
+	pthread_mutex_lock(&get_thread_data()->thread_lock); // only lock initialized threads
 }
 
-static inline void unlock_thread(struct thread_data *t){
-	pthread_mutex_unlock(&t->thread_lock);
+static inline void unlock_thread(){
+	pthread_mutex_unlock(&get_thread_data()->thread_lock);
 }
 
 #elif LOCK_NONE
@@ -575,9 +575,9 @@ static inline void lock_sizeClass(struct size_class *sc) { }
 
 static inline void unlock_sizeClass(struct size_class *sc) { }
 
-static inline void lock_thread(struct thread_data *t) { }
+static inline void lock_thread() { }
 
-static inline void unlock_thread(struct thread_data *t ){ }
+static inline void unlock_thread(){ }
 
 #else
 #error unknown locking scheme
@@ -853,7 +853,7 @@ static inline struct page *get_free_page(){
 	}
 
 #ifdef LOCK_THREAD
-	p->thread_mark = cf_key;
+	p->thread_mark = get_thread_data();
 #endif
 
 	return p;
@@ -1400,6 +1400,9 @@ static void init_thread(struct thread_data *data){
 	int ret = pthread_mutex_init(&data->thread_lock, NULL);
 	printf("creating mutex %d", ret);
 	if (ret) exit(-1);
+
+	// if threads are created and destroyed dynamically there has to be a list of free thread_data_table entries
+	thread_data_table = malloc(sizeof(struct thread_data *)*MAX_NUM_THREADS);
 #endif
 
 	if (private_classes) {
@@ -1467,26 +1470,42 @@ static void *assign_thread_specific()
 	return mem;
 }
 
+#ifdef LOCK_THREAD
+
 /**
  * get thread local data
  * @return thread local data
  */
 static struct thread_data *get_thread_data()
 {
-	return (struct thread_data *)pthread_getspecific(cf_key);	
+		   // if locking is done on thread level, there is
+		   // one added level of indirection do allow frees
+		   // in the data structures of another thread.
+	return thread_data_table[((struct thread_data *)pthread_getspecific(cf_key))->id];
 }
 
-#ifdef LOCK_THREAD
+/*
+ * set thread local data
+ */
+static void set_thread_data(struct page *p){
+	thread_data_table[((struct thread_data *)pthread_getspecific(cf_key))->id] = p->thread_mark;
+}
 
+static void set_thread_data_to_local(){
+	struct thread_data *t = (struct thread_data *)pthread_getspecific(cf_key);
+	thread_data_table[t->id] = t;
+}
+#else
 /**
-* get thread local data for another thread
-* @return thread local data
-*/
-static struct thread_data *get_thread_data_via_mark(pthread_key_t cf_thread_key)
-{
-	return (struct thread_data *)pthread_getspecific(cf_thread_key);
+ * get thread local data
+ * @return thread local data
+ */
+static struct thread_data *get_thread_data(){
+	return (struct thread_data *)pthread_getspecific(cf_key);
 }
 
+static void set_thread_data(struct page *p){}
+static void set_thread_data_to_local(){}
 #endif
 
 /////////////////////////////////////////////////////////////////////
@@ -1916,6 +1935,7 @@ void **cf_malloc(size_t size){
 				// data after calling malloc
 		t_data = (struct thread_data *)assign_thread_specific();
 		init_thread(t_data);
+		set_thread_data_to_local();
 	}
 
 	/*add size of explicit reference*/
@@ -1931,7 +1951,7 @@ void **cf_malloc(size_t size){
 
 	lock();
 
-	lock_thread(t_data);
+	lock_thread();
 	lock_sizeClass(sc);
 
 	/*first page in size-class or size class is full => beginn new page*/
@@ -1987,7 +2007,7 @@ void **cf_malloc(size_t size){
 
 	unlock_sizeClass(sc);
 #ifdef LOCK_THREAD
-	unlock_thread(t_data);
+	unlock_thread();
 #endif
 	unlock();
 
@@ -2007,11 +2027,7 @@ void **cf_malloc(size_t size){
 	return address;
 }
 
-#ifdef USE_STATS
-void cf_free_as_t(void **address, struct thread_data *t_data, uint64_t start_time) {
-#else
-void cf_free_as_t(void **address, struct thread_data *t_data) {
-#endif
+void cf_free(void **address) {
 	void *page_block;
 	struct page *target_page;
 	struct size_class *sc;
@@ -2023,16 +2039,28 @@ void cf_free_as_t(void **address, struct thread_data *t_data) {
 	char *target_block;
 	int target_index;
 	long *target_aa;
+	struct thread_data *t_data;
+#ifdef USE_STATS
+	uint64_t start_time;
+	start_time = get_utime();
+#endif
+	lock();
+
+#ifdef LOCK_THREAD
+	page_block = cf_dereference(address,0);
+	target_page = (struct page *)get_page_direct_of_page_block(page_block);
+	set_thread_data(target_page);
+#endif
 
 	/*no compaction*/
-	if (!compaction_on(t_data->size_classes)){
+	if (!compaction_on(get_thread_data()->size_classes)){
 		/*no abstract address*/
 		page_block = address;
  
 		target_page = (struct page *)get_page_direct_of_page_block(page_block);
 		sc = get_size_class_of_page(target_page);
 
-		lock_thread(t_data);
+		lock_thread();
 		lock_sizeClass(sc);
 	}
 	/*try to get size-class lock
@@ -2041,19 +2069,17 @@ void cf_free_as_t(void **address, struct thread_data *t_data) {
 retry:
 		/*dereference the abstract address*/
 		page_block = *address;
-		target_page = (struct page *)get_page_direct_of_page_block(page_block);
-		sc = get_size_class_of_page(target_page);
-
+		target_page = (struct page *)get_page_direct_of_page_block(page_block);	
 		/*take lock optimistically*/
 #ifdef LOCK_THREAD
-		t_data = get_thread_data_via_mark(target_page->thread_mark);
+		set_thread_data(target_page);
+		t_data = get_thread_data();
 #endif
 
-		if (!t_data){
-			printf("woopsie!");
+		if (!get_thread_data()){
 			goto retry;
 		} else {
-			lock_thread(t_data);
+			lock_thread();
 		}
 
 		/*dereference the abstract address*/
@@ -2061,13 +2087,13 @@ retry:
 		target_page = (struct page *)get_page_direct_of_page_block(page_block);
 
 #ifdef LOCK_THREAD
-		if (t_data != get_thread_data_via_mark(target_page->thread_mark)){
-			unlock_thread(t_data);
+		if (t_data != NULL && t_data != get_thread_data()){
+			unlock_thread();
 			goto retry;
 		}
 #endif
-
-		lock_sizeClass(sc);
+		if((sc = get_size_class_of_page(target_page)) != NULL) lock_sizeClass(sc);
+		else {unlock_thread(); goto retry;}
 
 		/*dereference the abstract address*/
 		page_block = *address;
@@ -2077,7 +2103,7 @@ retry:
 		if (sc != get_size_class_of_page(target_page)) {
 			/* we got the wrong lock! --> backtrack */
 			unlock_sizeClass(sc);
-			unlock_thread(t_data);
+			unlock_thread();
 			goto retry;
 		}
 
@@ -2171,9 +2197,11 @@ retry:
 #endif
 
 	unlock_sizeClass(sc);
-	unlock_thread(t_data);
+	unlock_thread();
+	unlock();
 }
 
+/*
 #ifdef LOCK_THREAD
 void cf_free(void **address){
 	void *page_block;
@@ -2194,31 +2222,7 @@ void cf_free(void **address){
 #else
 	cf_free_as_t(address, t_data); // get owner thread from page header (any thread can free like this)
 #endif
-	unlock();
-}
-
-
-void cf_local_free(void **address){
-#else
-#define cf_local_free(X) cf_free(X)
-void cf_free(void **address){
-#endif
-
-#ifdef USE_STATS
-	uint64_t start_time;
-	start_time = get_utime();
-#endif
-
-	lock();
-#ifdef USE_STATS
-	cf_free_as_t(address, get_thread_data(), start_time);
-#else
-	cf_free_as_t(address, get_thread_data()); // assume local thread allocated object (standard if there is no remote free)
-#endif
-
-	unlock();
-
-}
+} */
 
 
 void *cf_dereference(void **address, int index)
