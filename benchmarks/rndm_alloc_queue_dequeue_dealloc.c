@@ -114,6 +114,7 @@ int bench_func(struct bench_stats *stats)
 	int enq_index = 0;
 	int deq_index = LB_QUEUE_POINTER_CHUNK_SIZE;
 	long int rnd;
+	int size;
 	struct drand48_data seed;
 	memory_cache_t *mem_c;
 	address_chunk_node_t *enq_chunk;
@@ -135,9 +136,11 @@ allocate:
 				enq_chunk = cached_malloc(mem_c);
 				enq_index = 0;
 			}
-
-			enq_chunk->address[enq_index] = cf_malloc(next_size(&seed));
+			size = next_size(&seed);
+			enq_chunk->address[enq_index] = cf_malloc(size);
+			*(int *)cf_dereference(enq_chunk->address[enq_index], 0) = size;
 			enq_index++;
+			stats->bytes_allocated_netto += size;
 		} else {
 			if (deq_index >= LB_QUEUE_POINTER_CHUNK_SIZE){
 				tmp_chunk = queue.try_dequeue(&queue);
@@ -149,7 +152,7 @@ allocate:
 					deq_index = 0;
 				}
 			}
-
+			stats->bytes_allocated_netto -= *(int *)cf_dereference(deq_chunk->address[deq_index], 0);
 			cf_free(deq_chunk->address[deq_index]);
 			deq_index++;
 		}

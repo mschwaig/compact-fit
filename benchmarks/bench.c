@@ -38,7 +38,7 @@ static int aas_free_buckets = 1;
 static struct bench_stats *statistics;
 static int k = 1;
 static int block_size = 0;
-static long heap_size = 3000*1024*1024;
+static long heap_size = 800*1024*1024;
 static int aa_size = 80*1024*1024;
 static int ms_to_run = 1000;
 static int us_to_sleep = 0;
@@ -49,14 +49,15 @@ static int private = 0;
 static int memory_stat_interv = 200;
 static FILE *stats_file;
 
-static void record_mem_usage(long start_time);
+static int record_mem_usage(long start_time);
+static struct mem_usage_data* mem_stat_data;
 
-static struct mem_usage_data {
-	int netto;
-	int brutto;
+struct mem_usage_data {
+	long netto;
+	long brutto;
 	long time;
 
-} __attribute__((aligned(128)));
+}; //  __attribute__((aligned(128)));
 
 int get_num_threads()
 {
@@ -243,7 +244,7 @@ __attribute__((weak)) void set_use_cf()
 
 static void init_allocator()
 {
-	printf("heap size %d, addresses %d\n", heap_size, aa_size);
+	printf("heap size %ld, addresses %d\n", heap_size, aa_size);
 	cf_init(aa_size, heap_size, 
 		local_pages, pages_buckets, 
 		local_aas, aas_buckets, aas_free_buckets, 
@@ -403,8 +404,8 @@ int main(int argc, char **argv)
 	if (!statistics)
 	    perror("malloc statistics");
 	
-	int mem_stat_data_size = sizeof(struct mem_usage_data)*(ms_to_run/memory_stat_interv) + 3;
-	mem_stat_data = malloc(mem_stat_data_size);
+	int mem_stat_data_size = ms_to_run/memory_stat_interv + 3;
+	mem_stat_data = malloc(mem_stat_data_size*sizeof(struct mem_usage_data));
 
 	for (i = 0; i < mem_stat_data_size; i++){
 		mem_stat_data[i].netto = 0;
@@ -454,27 +455,38 @@ int main(int argc, char **argv)
 		}*/
 	}
 
+	int sample_count;
+
 	start_time = get_utime();
-	record_mem_usage(start_time);
+	sample_count = record_mem_usage(start_time);
 	clear_running();
 	printf("running flag cleared\n");
 	for (i=0;i<num_threads;++i)
 	    pthread_join(threads[i], NULL);
 
 	sum_stats(get_utime() - start_time);
+	
+	printf("MARK  TIMESTAMP   NETTO    BRUTTO    RATIO");
+	for (i = 0; i < sample_count; i++){
+		printf("TIME %llu %lu %lu %f\n", (mem_stat_data[i].time-start_time)/1000,
+						  mem_stat_data[i].netto, mem_stat_data[i].brutto*16384,
+						  mem_stat_data[i].netto/(mem_stat_data[i].brutto*16384.0 ));
+	}
+
 	return 0;
 }
 
-static void record_mem_usage(long start_time){
+static int record_mem_usage(long start_time){
 	long end_time = start_time + ms_to_run*1000;
 	long probe;
 	long tmp;
 	long sleep_diff;
 	int timeslice = 0;
+	int i;
 	while ((probe = get_utime()) < end_time){
 		for (i=0;i<num_threads;i++){
-			mem_stat_data[timeslice].netto += statistics[i]
-			mem_stat_data[timeslice].brutto += statistics[i]
+			mem_stat_data[timeslice].netto += statistics[i].bytes_allocated_netto;
+			mem_stat_data[timeslice].brutto += statistics[i].used_pages;
 		}
 
 		tmp = get_utime();
@@ -483,4 +495,6 @@ static void record_mem_usage(long start_time){
 		sleep_diff = tmp - probe + memory_stat_interv*1000;
 		if (sleep_diff > 0) usleep(sleep_diff);
 	}
+
+	return timeslice;
 }
