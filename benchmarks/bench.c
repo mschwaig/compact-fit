@@ -45,8 +45,18 @@ static int us_to_sleep = 0;
 static int mcpy_inc = 0;
 static int mcpy_mult = 1;
 static int private = 0;
+// time between memory status snapshots in ms
+static int memory_stat_interv = 200;
 static FILE *stats_file;
 
+static void record_mem_usage(long start_time);
+
+static struct mem_usage_data {
+	int netto;
+	int brutto;
+	long time;
+
+} __attribute__((aligned(128)));
 
 int get_num_threads()
 {
@@ -392,6 +402,15 @@ int main(int argc, char **argv)
 	statistics = malloc(num_threads*sizeof(struct bench_stats));
 	if (!statistics)
 	    perror("malloc statistics");
+	
+	int mem_stat_data_size = sizeof(struct mem_usage_data)*(ms_to_run/memory_stat_interv) + 3;
+	mem_stat_data = malloc(mem_stat_data_size);
+
+	for (i = 0; i < mem_stat_data_size; i++){
+		mem_stat_data[i].netto = 0;
+		mem_stat_data[i].brutto = 0;
+		mem_stat_data[i].time = 0;
+	}
 
 	memset(statistics, 0, num_threads*sizeof(struct bench_stats));
 	if (!threads || !statistics) {
@@ -436,8 +455,7 @@ int main(int argc, char **argv)
 	}
 
 	start_time = get_utime();
-
-	ms_wait(ms_to_run);
+	record_mem_usage(start_time);
 	clear_running();
 	printf("running flag cleared\n");
 	for (i=0;i<num_threads;++i)
@@ -447,3 +465,22 @@ int main(int argc, char **argv)
 	return 0;
 }
 
+static void record_mem_usage(long start_time){
+	long end_time = start_time + ms_to_run*1000;
+	long probe;
+	long tmp;
+	long sleep_diff;
+	int timeslice = 0;
+	while ((probe = get_utime()) < end_time){
+		for (i=0;i<num_threads;i++){
+			mem_stat_data[timeslice].netto += statistics[i]
+			mem_stat_data[timeslice].brutto += statistics[i]
+		}
+
+		tmp = get_utime();
+		mem_stat_data[timeslice].time = tmp;
+		timeslice++;
+		sleep_diff = tmp - probe + memory_stat_interv*1000;
+		if (sleep_diff > 0) usleep(sleep_diff);
+	}
+}
