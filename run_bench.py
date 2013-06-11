@@ -5,6 +5,7 @@ from subprocess import call
 import os
 
 thread_count = 10
+runs = 3
 
 def parse_run_result(f_run_results, f_results, t_number):
 	allocs = 0
@@ -18,19 +19,34 @@ def parse_run_result(f_run_results, f_results, t_number):
 			allocs += int(splitline[2])
 			compacts += int(splitline[3])
 			frees += int(splitline[4])
-	print(str(t_number)+ "\t" + str(allocs) + "\t" + str(frees) + "\t" + str(compacts) + "\n", file=f_results)
+	print(str(t_number)+ "\t" + str(allocs/runs) + "\t" + str(frees/runs) + "\t" + str(compacts/runs) + "\n", file=f_results)
 
-def bench_run(locking_scheme):
-	f_results = open("benchmarks/results/" + str(locking_scheme) + "_results.log","w")
-	print("threads allocs frees compacts",file=f_results);
+def bench_run(locking_scheme, private):
+	default_cmd = ["benchmarks/" + str(locking_scheme),"--partial-comp","-1"] 
+	if (private):
+		default_cmd.append("-p")
+		fname = str(locking_scheme) + "_p_"
+	else:
+		fname = str(locking_scheme) + "_g_"
+	f_results = open("benchmarks/results/" + fname + "results.log","w")
+	print("# threads allocs frees compacts",file=f_results);
 	for threads in range(1,thread_count+1):
-		f_run_results = open("benchmarks/results/" + str(locking_scheme) + "_" + str(threads) + "t.log","w+")
-		call(["benchmarks/" + str(locking_scheme),"-n",str(threads),"-p","--partial-comp","-1"],stderr=f_run_results)
+		command = default_cmd[:]
+		command.extend(["-n",str(threads)])
+		f_run_results = open("benchmarks/results/" + fname + str(threads) + "t.log","w+")
+		for r in range(runs):
+			f_run_results.write("== run " + str(r + 1) + " ==\n")
+			f_run_results.flush()
+			call(command, stderr=f_run_results)
+			f_run_results.flush()
 		parse_run_result(f_run_results, f_results, threads)
 		f_run_results.close()
 	f_results.close()
 
 res_folder = "benchmarks/results/"
+
+if not os.path.exists(res_folder):
+	os.makedirs(res_folder)
 
 for tmp in os.listdir(res_folder):	 # clean up result folder
 	tmp_path = os.path.join(res_folder, tmp)
@@ -45,7 +61,9 @@ if(call(["make","CC=gcc-4.4"]) != 0):
 	raise error("make failed")
 
 
-bench_run("global")
-bench_run("thread")
-bench_run("class")
-bench_run("page")
+bench_run("global", False)
+bench_run("class", False)
+bench_run("page", False)
+bench_run("thread", True)
+bench_run("class", True)
+bench_run("page", True)
