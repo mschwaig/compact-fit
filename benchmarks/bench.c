@@ -466,9 +466,9 @@ int main(int argc, char **argv)
 
 	sum_stats(get_utime() - start_time);
 	
-	printf("MARK  TIMESTAMP   NETTO    BRUTTO    RATIO\n");
+	fprintf(stderr, "MARK  TIMESTAMP   NETTO    BRUTTO    RATIO\n");
 	for (i = 0; i < sample_count; i++){
-		printf("TIME %llu %lu %lu %f\n", (mem_stat_data[i].time-start_time)/1000,
+		fprintf(stderr, "MEMDTA %llu %lu %lu %f\n", (mem_stat_data[i].time-start_time)/1000,
 						  mem_stat_data[i].netto, mem_stat_data[i].brutto*16384,
 						  mem_stat_data[i].netto/(mem_stat_data[i].brutto*16384.0 ));
 	}

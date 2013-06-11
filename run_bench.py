@@ -4,8 +4,23 @@ from __future__ import print_function
 from subprocess import call
 import os
 
-thread_count = 10
+thread_count = 2
 runs = 3
+
+def record_mem_usage_results(f_run_results, fname, threads, r):
+	f_run_results.seek(0)
+	mem_file = None
+	for line in f_run_results:
+		if line.startswith("== run"):
+			splitline = line.strip().split(" ")
+			run = int(splitline[2])
+			if mem_file:
+				mem_file.close() 
+			mem_file = open("benchmarks/results/" + fname + "r" + str(run) + "_mem.log","w")
+		elif line.startswith("MEMDTA"):
+			mem_file.write(line.replace("MEMDTA","").strip() + "\n")
+	if not mem_file.closed:
+		mem_file.close()
 
 def parse_run_result(f_run_results, f_results, t_number):
 	allocs = 0
@@ -39,6 +54,8 @@ def bench_run(locking_scheme, private):
 			f_run_results.flush()
 			call(command, stderr=f_run_results)
 			f_run_results.flush()
+		if threads == thread_count:
+			record_mem_usage_results(f_run_results, fname, threads, r)
 		parse_run_result(f_run_results, f_results, threads)
 		f_run_results.close()
 	f_results.close()
