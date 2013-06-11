@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <stdbool.h>
+#include <math.h>
 
 #define STEPS 512
 
@@ -15,6 +16,8 @@
 
 static int us_to_sleep = 0;
 static int share = 0;
+static double dist_p = 0.5;
+static int max_alloc_size = 16000;
 static long int *thread_seed;
 
 
@@ -35,39 +38,15 @@ static int class_map[] = {
 
 static lb_queue_t queue;
 
-static int get_alloc_size(int class)
-{
-	int retval;
-	int rand_num;
-
-	rand_num = random();
-
-	if(class == 0) {
-		retval = rand_num % class_map[class];
-	} else {
-		retval = class_map[class - 1] + rand_num % (class_map[class] - class_map[class - 1]);
-	}
-	return retval;
-}
-
-static int get_alloc_class(){
-#if 1
-	int retval;
-	retval = random() % NUM_BENCH;
-	return alloc_sizes[retval];
-#else
-	return random() % NUM_CLASSES;
-#endif
-}
-
 static int next_size(struct drand48_data *pseed){
-	long int size;
-	// TODO: use exponentially distributed values for this as suggested by D. Knuth in TAOCP Vol1 iirc
-	// using uniform distribution for now
-	lrand48_r(pseed, &size);
-	//if (!size) size = 1; // no zero
-	return size % 16000;
-
+	double u;
+	int size;
+	do {
+	// TODO: consider other distribution options
+	drand48_r(pseed, &u);
+	size = floor(log(u)/log(1-dist_p)*max_alloc_size) + 1;
+	} while (size > max_alloc_size);
+	return size;
 }
 
 inline address_chunk_node_t *cached_malloc(memory_cache_t *pmem_c){

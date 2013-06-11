@@ -17,7 +17,7 @@ BINARIES = bench\
 BENCH_LIB = bench.o ../nb_stack.o ../page_stack.o ../aa_stack.o ../aa_bucket_stack.o abstract_addr_queue/lb_queue.o
 
 CFLAGS = -pthread -m32 -O3 -DUSE_PRIVATE_ADDRESS -DUSE_STATS -Wall -I..
-LDFLAGS = -pthread -m32 -L/usr/lib32/
+LDFLAGS = -pthread -m32 -L/usr/lib32/ -lm
 
 all: $(BINARIES)
 
