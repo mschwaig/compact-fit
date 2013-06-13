@@ -819,7 +819,7 @@ static inline struct page *get_free_page(){
 #ifdef USE_STATS
 				struct bench_stats *stats;
 				stats = get_bench_stats();
-				stats->local_free_pages += nr_local_pages;
+				if(private_classes)stats->local_free_pages += nr_local_pages;
 #endif
 				data->pages_count = nr_local_pages;
 				data->pages = mp;
@@ -851,7 +851,7 @@ static inline struct page *get_free_page(){
 		struct bench_stats *stats;
 		stats = get_bench_stats();
 		stats->used_pages++;
-		stats->local_free_pages--;
+		if(private_classes)stats->local_free_pages--;
 		if (stats->used_pages > stats->max_used_pages)
 			stats->max_used_pages = stats->used_pages;
 #endif
@@ -876,7 +876,7 @@ static inline void add_free_page(struct page *p){
 	struct bench_stats *stats;
 	stats = get_bench_stats();
 	stats->used_pages--;
-	stats->local_free_pages++;
+	if(private_classes)stats->local_free_pages++;
 #endif
 #ifdef GLOBAL_STATS
 	used_pages--;
@@ -895,7 +895,7 @@ static inline void add_free_page(struct page *p){
 		if(data->pbuckets_count >= nr_local_pbuckets){
 			page_put(data->pbuckets, data->last_pbucket, &free_page_head);
 #ifdef USE_STATS
-			stats->local_free_pages -= data->pbuckets_count*nr_local_pages;
+			if(private_classes)stats->local_free_pages -= data->pbuckets_count*nr_local_pages;
 #endif
 			data->pbuckets_count = 0;
 			data->pbuckets = NULL;
