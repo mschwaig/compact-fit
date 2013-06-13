@@ -12,7 +12,7 @@ struct bench_stats {
 	int us_to_sleep;
 	long used_pages;
 	long max_used_pages;
-	long local_free_pages;
+	volatile long local_free_pages;
 	long num_alloc;
 	long num_free;
 	long num_compaction;

@@ -57,7 +57,7 @@ struct mem_usage_data {
 	long brutto;
 	long time;
 
-}; //  __attribute__((aligned(128)));
+}  __attribute__((aligned(128)));
 
 int get_num_threads()
 {
