@@ -30,8 +30,8 @@ pthread_key_t bench_key;
 static volatile int run = 1;
 static pthread_t *threads;
 static int num_threads = 1;
-static int local_pages = 10000;
-static int pages_buckets = 1;
+static int local_pages = 100;
+static int pages_buckets = 10;
 static int local_aas = 1000000;
 static int aas_buckets = 1;
 static int aas_free_buckets = 1;
@@ -466,7 +466,7 @@ int main(int argc, char **argv)
 
 	sum_stats(get_utime() - start_time);
 	
-	fprintf(stderr, "MARK  TIMESTAMP   NETTO    BRUTTO    RATIO\n");
+	fprintf(stderr, "MEMDTA  TIMESTAMP   NETTO    BRUTTO    RATIO\n");
 	for (i = 0; i < sample_count; i++){
 		fprintf(stderr, "MEMDTA %llu %lu %lu %f\n", (mem_stat_data[i].time-start_time)/1000,
 						  mem_stat_data[i].netto, mem_stat_data[i].brutto*16384,
@@ -486,7 +486,7 @@ static int record_mem_usage(long start_time){
 	while ((probe = get_utime()) < end_time){
 		for (i=0;i<num_threads;i++){
 			mem_stat_data[timeslice].netto += statistics[i].bytes_allocated_netto;
-			mem_stat_data[timeslice].brutto += statistics[i].used_pages;
+			mem_stat_data[timeslice].brutto += statistics[i].used_pages + statistics[i].local_free_pages;
 		}
 
 		tmp = get_utime();
