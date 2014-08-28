@@ -74,7 +74,7 @@ for tmp in os.listdir(res_folder):	 # clean up result folder
 
 if(call(["make","clean"]) != 0):
 	raise error("clean failed")
-if(call(["make","CC=gcc-4.4"]) != 0):
+if(call(["make","CC=gcc-4.8"]) != 0):
 	raise error("make failed")
 
 

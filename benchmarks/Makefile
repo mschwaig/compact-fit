@@ -22,43 +22,43 @@ LDFLAGS = -pthread -m32 -L/usr/lib32/ -lm
 all: $(BINARIES)
 
 class:  rndm_alloc_queue_dequeue_dealloc.o $(BENCH_LIB) ../cf_class.o
-	${CC} $(LDFLAGS)  -o $@ $< $(BENCH_LIB) ../cf_class.o
+	${CC} -o $@ $< $(BENCH_LIB) ../cf_class.o $(LDFLAGS) 
 
 global: rndm_alloc_queue_dequeue_dealloc.o $(BENCH_LIB) ../cf_global.o
-	${CC} $(LDFLAGS)  -o $@ $< $(BENCH_LIB) ../cf_global.o
+	${CC} -o $@ $< $(BENCH_LIB) ../cf_global.o $(LDFLAGS) 
 
 page:   rndm_alloc_queue_dequeue_dealloc.o $(BENCH_LIB) ../cf_page.o
-	${CC} $(LDFLAGS)  -o $@ $< $(BENCH_LIB) ../cf_page.o
+	${CC} -o $@ $< $(BENCH_LIB) ../cf_page.o $(LDFLAGS) 
 
 thread: rndm_alloc_queue_dequeue_dealloc.o $(BENCH_LIB) ../cf_thread.o
-	${CC} $(LDFLAGS)  -o $@ $< $(BENCH_LIB) ../cf_thread.o
+	${CC} -o $@ $< $(BENCH_LIB) ../cf_thread.o $(LDFLAGS) 
 
 none:   rndm_alloc_queue_dequeue_dealloc.o $(BENCH_LIB) ../cf_none.o
-	${CC} $(LDFLAGS)  -o $@ $< $(BENCH_LIB) ../cf_none.o
+	${CC} -o $@ $< $(BENCH_LIB) ../cf_none.o $(LDFLAGS) 
 
 single_malloc_mult_free: single_malloc_mult_free.o $(BENCH_LIB) ../cf_class.o
-	${CC} $(LDFLAGS)  -o $@ $< $(BENCH_LIB) ../cf_class.o
+	${CC} -o $@ $< $(BENCH_LIB) ../cf_class.o $(LDFLAGS) 
 
 bench: $(BENCH_LIB) $(HEADERS)
-	${CC} $(LDFLAGS) -o $@ $(BENCH_LIB) ../cf_none.o
+	${CC} -o $@ $(BENCH_LIB) ../cf_none.o $(LDFLAGS) 
 
 alloc_count: alloc_count.o $(BENCH_LIB) $(HEADERS) ../cf_none.o
-	${CC} $(LDFLAGS)  -o $@ $< $(BENCH_LIB) ../cf_none.o
+	${CC} -o $@ $< $(BENCH_LIB) ../cf_none.o $(LDFLAGS) 
 
 memcpy_count: memcpy_count.o $(BENCH_LIB) $(HEADERS)
-	${CC} $(LDFLAGS) $(BENCH_LIB) -o $@ $< ../cf_none.o
+	${CC} $(BENCH_LIB) -o $@ $< ../cf_none.o $(LDFLAGS) 
 
 mdrv_test: mdrv_test.o $(BENCH_LIB) $(HEADERS) ../cf_class.o
-	${CC} $(LDFLAGS)  -o $@ $< $(BENCH_LIB) ../cf_class.o
+	${CC} -o $@ $< $(BENCH_LIB) ../cf_class.o $(LDFLAGS)
 
 mdrv_share: mdrv_share.o $(BENCH_LIB) $(HEADERS) ../cf_class.o
-	${CC} $(LDFLAGS)  -o $@ $< $(BENCH_LIB) ../cf_class.o
+	${CC} -o $@ $< $(BENCH_LIB) ../cf_class.o $(LDFLAGS) 
 
 tlsf.o: tlsf.c
 	${CC} $(CFLAGS) -c -o $@ $< -DUSE_MMAP=1 -DUSE_SBRK=1
 
 mdrv_tlsf: mdrv_tlsf.o $(BENCH_LIB) $(HEADERS) ../cf_none.o tlsf.o
-	${CC} $(LDFLAGS)  -o $@ $< $(BENCH_LIB) ../cf_none.o tlsf.o
+	${CC} -o $@ $< $(BENCH_LIB) ../cf_none.o tlsf.o $(LDFLAGS) 
 
 clean:
 	@rm -f $(OBJECTS) $(BINARIES)
